@@ -1,0 +1,17 @@
+export const INDUSTRY_OPTIONS: { key: string; label: string }[] = [
+  { key: 'it', label: '计算机/互联网/通信/电子' },
+  { key: 'finance', label: '会计/金融/银行/保险' },
+  { key: 'manufacturing', label: '贸易/消费/制造/营运' },
+  { key: 'pharma', label: '制药/医疗/健康' },
+  { key: 'media', label: '广告/媒体/公关' },
+  { key: 'real_estate', label: '房地产/建筑/工程' },
+  { key: 'education', label: '专业服务/教育/培训' },
+  { key: 'services', label: '生活服务/餐饮/旅游' },
+  { key: 'logistics', label: '物流/运输/仓储' },
+  { key: 'energy', label: '能源/化工/环保' },
+  { key: 'automotive', label: '汽车/机械/设备' },
+  { key: 'agriculture', label: '农林牧渔' },
+  { key: 'public', label: '政府/公共事业/非营利' },
+  { key: 'culture', label: '文化/体育/娱乐' },
+  { key: 'other', label: '其他' },
+]
