@@ -5,22 +5,20 @@ import { Member } from './member.entity';
 import { Activity } from './activity.entity';
 
 export enum OpportunityStatus {
-  QUALIFICATION = 'qualification',
-  NEEDS_ANALYSIS = 'needs_analysis',
-  VALUE_PROPOSITION = 'value_proposition',
-  IDENTIFY_DECISION_MAKERS = 'identify_decision_makers',
-  PROPOSAL_PRICE_QUOTE = 'proposal_price_quote',
-  NEGOTIATION_REVIEW = 'negotiation_review',
-  CLOSED_WON = 'closed_won',
-  CLOSED_LOST = 'closed_lost',
+  ACTIVE = 'active',                    // 积极跟进：正常推进中，销售需要主动联系
+  WAITING_CLIENT = 'waiting_client',    // 等待客户：已向客户发出请求，等待客户回复
+  ON_HOLD = 'on_hold',                  // 已搁置：因客户预算、时机等原因暂时停止跟进
+  AT_RISK = 'at_risk',                  // 面临风险：出现不利信号，需要立即处理
+  CLOSED = 'closed',                    // 已结束：与阶段中的赢单/输单同步
 }
 
 export enum OpportunityStage {
-  PROSPECTING = 'prospecting',
-  QUALIFICATION = 'qualification',
-  PROPOSAL = 'proposal',
-  NEGOTIATION = 'negotiation',
-  CLOSED = 'closed',
+  INITIAL_CONTACT = 'initial_contact',      // 初步接触
+  NEEDS_ANALYSIS = 'needs_analysis',        // 需求分析
+  PROPOSAL_QUOTE = 'proposal_quote',        // 方案/报价
+  NEGOTIATION_REVIEW = 'negotiation_review', // 谈判审核
+  CLOSED_WON = 'closed_won',                // 赢单
+  CLOSED_LOST = 'closed_lost',              // 输单
 }
 
 @Entity('opportunities')
@@ -34,7 +32,7 @@ export class Opportunity extends BaseEntity {
   @Column({
     type: 'enum',
     enum: OpportunityStatus,
-    default: OpportunityStatus.QUALIFICATION,
+    default: OpportunityStatus.ACTIVE,
     comment: '商机状态',
   })
   status: OpportunityStatus;
@@ -42,7 +40,7 @@ export class Opportunity extends BaseEntity {
   @Column({
     type: 'enum',
     enum: OpportunityStage,
-    default: OpportunityStage.PROSPECTING,
+    default: OpportunityStage.INITIAL_CONTACT,
     comment: '商机阶段',
   })
   stage: OpportunityStage;

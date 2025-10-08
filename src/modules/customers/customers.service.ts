@@ -54,6 +54,11 @@ export interface QueryCustomerDto {
   search?: string;
   type?: CustomerType;
   status?: CustomerStatus;
+  source?: string;
+  industry?: string;
+  province?: string;
+  city?: string;
+  district?: string;
   page?: number;
   limit?: number;
 }
@@ -83,7 +88,7 @@ export class CustomersService {
   }
 
   async findAllCustomers(query: QueryCustomerDto, memberId: string, tenantId: string) {
-    const { search, type, status, page = 1, limit = 10 } = query;
+    const { search, type, status, source, industry, province, city, district, page = 1, limit = 10 } = query;
     
     const queryBuilder = this.customerRepository.createQueryBuilder('customer')
       .leftJoinAndSelect('customer.owner', 'owner')
@@ -112,6 +117,27 @@ export class CustomersService {
     // 状态筛选
     if (status) {
       queryBuilder.andWhere('customer.status = :status', { status });
+    }
+
+    // 来源筛选
+    if (source) {
+      queryBuilder.andWhere('customer.source = :source', { source });
+    }
+
+    // 行业筛选
+    if (industry) {
+      queryBuilder.andWhere('customer.industry = :industry', { industry });
+    }
+
+    // 地区筛选
+    if (province) {
+      queryBuilder.andWhere('customer.province = :province', { province });
+    }
+    if (city) {
+      queryBuilder.andWhere('customer.city = :city', { city });
+    }
+    if (district) {
+      queryBuilder.andWhere('customer.district = :district', { district });
     }
 
     // 排序和分页

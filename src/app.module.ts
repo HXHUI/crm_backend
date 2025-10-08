@@ -23,6 +23,8 @@ import { ContactsModule } from './modules/contacts/contacts.module';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { LeadsModule } from './modules/leads/leads.module';
+import { StatisticsModule } from './modules/statistics/statistics.module';
+import { TargetsModule } from './modules/targets/targets.module';
 
 // 健康检查
 import { HealthController } from './common/health/health.controller';
@@ -62,6 +64,8 @@ import * as entities from './entities';
     OpportunitiesModule,
     ActivitiesModule,
     LeadsModule,
+    StatisticsModule,
+    TargetsModule,
   ],
   controllers: [
     HealthController,

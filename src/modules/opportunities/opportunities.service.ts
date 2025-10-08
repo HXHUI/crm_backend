@@ -100,6 +100,7 @@ export class OpportunitiesService {
       value: opp.amount,
       currency: 'CNY',
       stage: this.mapEntityStageToFrontend(opp.stage),
+      status: this.mapEntityStatusToFrontend(opp.status),
       probability: opp.probability,
       expectedCloseDate: opp.expectedCloseDate?.toISOString() || '',
       customerId: opp.customerId,
@@ -124,7 +125,7 @@ export class OpportunitiesService {
         { id, ownerId: memberId, tenantId }, // 当前用户负责的商机
         { id, ownerId: null, tenantId }      // 公海商机（没有负责人）
       ],
-      relations: ['customer', 'activities'],
+      relations: ['customer'],
     });
 
     if (!opportunity) {
@@ -240,8 +241,8 @@ export class OpportunitiesService {
     opportunity.stage = stage;
     
     // 根据阶段自动设置状态
-    if (stage === OpportunityStage.CLOSED) {
-      if (opportunity.status === OpportunityStatus.CLOSED_WON) {
+    if (stage === OpportunityStage.CLOSED_WON || stage === OpportunityStage.CLOSED_LOST) {
+      if (stage === OpportunityStage.CLOSED_WON) {
         opportunity.actualCloseDate = new Date();
       }
     }
@@ -249,16 +250,34 @@ export class OpportunitiesService {
     return await this.opportunityRepository.save(opportunity);
   }
 
-  async closeOpportunity(
+  async updateOpportunityStatus(
     id: string,
-    status: OpportunityStatus.CLOSED_WON | OpportunityStatus.CLOSED_LOST,
+    status: OpportunityStatus,
     memberId: string,
   ) {
     const opportunity = await this.opportunityRepository.findOne({ where: { id } });
     if (!opportunity) throw new NotFoundException('商机不存在');
     
     opportunity.status = status;
-    opportunity.stage = OpportunityStage.CLOSED;
+    
+    // 如果状态是已结束，同时更新阶段和实际成交时间
+    if (status === OpportunityStatus.CLOSED) {
+      opportunity.actualCloseDate = new Date();
+    }
+
+    return await this.opportunityRepository.save(opportunity);
+  }
+
+  async closeOpportunity(
+    id: string,
+    status: 'closed_won' | 'closed_lost',
+    memberId: string,
+  ) {
+    const opportunity = await this.opportunityRepository.findOne({ where: { id } });
+    if (!opportunity) throw new NotFoundException('商机不存在');
+    
+    opportunity.status = status === 'closed_won' ? OpportunityStatus.CLOSED : OpportunityStatus.CLOSED;
+    opportunity.stage = status === 'closed_won' ? OpportunityStage.CLOSED_WON : OpportunityStage.CLOSED_LOST;
     opportunity.actualCloseDate = new Date();
 
     return await this.opportunityRepository.save(opportunity);
@@ -272,38 +291,51 @@ export class OpportunitiesService {
   // 辅助方法：将前端阶段映射到实体阶段
   private mapStageToEntity(stage: string): OpportunityStage {
     const stageMap: Record<string, OpportunityStage> = {
-      'lead': OpportunityStage.PROSPECTING,
-      'qualification': OpportunityStage.QUALIFICATION,
-      'proposal': OpportunityStage.PROPOSAL,
-      'negotiation': OpportunityStage.NEGOTIATION,
-      'closed_won': OpportunityStage.CLOSED,
-      'closed_lost': OpportunityStage.CLOSED,
+      'initial_contact': OpportunityStage.INITIAL_CONTACT,
+      'needs_analysis': OpportunityStage.NEEDS_ANALYSIS,
+      'proposal_quote': OpportunityStage.PROPOSAL_QUOTE,
+      'negotiation_review': OpportunityStage.NEGOTIATION_REVIEW,
+      'closed_won': OpportunityStage.CLOSED_WON,
+      'closed_lost': OpportunityStage.CLOSED_LOST,
     };
-    return stageMap[stage] || OpportunityStage.PROSPECTING;
+    return stageMap[stage] || OpportunityStage.INITIAL_CONTACT;
   }
 
   // 辅助方法：将前端阶段映射到实体状态
   private mapStageToStatus(stage: string): OpportunityStatus {
     const statusMap: Record<string, OpportunityStatus> = {
-      'lead': OpportunityStatus.QUALIFICATION,
-      'qualification': OpportunityStatus.QUALIFICATION,
-      'proposal': OpportunityStatus.PROPOSAL_PRICE_QUOTE,
-      'negotiation': OpportunityStatus.NEGOTIATION_REVIEW,
-      'closed_won': OpportunityStatus.CLOSED_WON,
-      'closed_lost': OpportunityStatus.CLOSED_LOST,
+      'initial_contact': OpportunityStatus.ACTIVE,
+      'needs_analysis': OpportunityStatus.ACTIVE,
+      'proposal_quote': OpportunityStatus.WAITING_CLIENT,
+      'negotiation_review': OpportunityStatus.ACTIVE,
+      'closed_won': OpportunityStatus.CLOSED,
+      'closed_lost': OpportunityStatus.CLOSED,
     };
-    return statusMap[stage] || OpportunityStatus.QUALIFICATION;
+    return statusMap[stage] || OpportunityStatus.ACTIVE;
   }
 
   // 辅助方法：将实体阶段映射到前端阶段
   private mapEntityStageToFrontend(stage: OpportunityStage): string {
     const stageMap: Record<OpportunityStage, string> = {
-      [OpportunityStage.PROSPECTING]: 'lead',
-      [OpportunityStage.QUALIFICATION]: 'qualification',
-      [OpportunityStage.PROPOSAL]: 'proposal',
-      [OpportunityStage.NEGOTIATION]: 'negotiation',
-      [OpportunityStage.CLOSED]: 'closed_won', // 需要根据status进一步判断
+      [OpportunityStage.INITIAL_CONTACT]: 'initial_contact',
+      [OpportunityStage.NEEDS_ANALYSIS]: 'needs_analysis',
+      [OpportunityStage.PROPOSAL_QUOTE]: 'proposal_quote',
+      [OpportunityStage.NEGOTIATION_REVIEW]: 'negotiation_review',
+      [OpportunityStage.CLOSED_WON]: 'closed_won',
+      [OpportunityStage.CLOSED_LOST]: 'closed_lost',
     };
-    return stageMap[stage] || 'lead';
+    return stageMap[stage] || 'initial_contact';
+  }
+
+  // 辅助方法：将实体状态映射到前端状态
+  private mapEntityStatusToFrontend(status: OpportunityStatus): string {
+    const statusMap: Record<OpportunityStatus, string> = {
+      [OpportunityStatus.ACTIVE]: 'active',
+      [OpportunityStatus.WAITING_CLIENT]: 'waiting_client',
+      [OpportunityStatus.ON_HOLD]: 'on_hold',
+      [OpportunityStatus.AT_RISK]: 'at_risk',
+      [OpportunityStatus.CLOSED]: 'closed',
+    };
+    return statusMap[status] || 'active';
   }
 }

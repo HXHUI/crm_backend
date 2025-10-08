@@ -95,10 +95,24 @@ export class OpportunitiesController {
     };
   }
 
+  @Patch(':id/status')
+  async updateOpportunityStatus(
+    @Param('id') id: string,
+    @Body() body: { status: OpportunityStatus },
+    @CurrentUser() user: any,
+  ) {
+    const opportunity = await this.opportunitiesService.updateOpportunityStatus(id, body.status, user.memberId);
+    return {
+      code: 200,
+      message: '更新商机状态成功',
+      data: opportunity
+    };
+  }
+
   @Patch(':id/close')
   async closeOpportunity(
     @Param('id') id: string,
-    @Body() body: { status: OpportunityStatus.CLOSED_WON | OpportunityStatus.CLOSED_LOST },
+    @Body() body: { status: 'closed_won' | 'closed_lost' },
     @CurrentUser() user: any,
   ) {
     const opportunity = await this.opportunitiesService.closeOpportunity(id, body.status, user.memberId);

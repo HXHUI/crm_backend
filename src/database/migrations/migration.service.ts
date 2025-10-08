@@ -14,7 +14,12 @@ export interface MigrationInfo {
 @Injectable()
 export class MigrationService {
   private readonly logger = new Logger(MigrationService.name);
-  private readonly migrationsPath = path.join(__dirname, 'versions');
+  // 兼容 ts-node 运行(src) 与 编译后运行(dist)，多路径并行扫描
+  private readonly migrationsPaths = [
+    path.join(__dirname, 'versions'),
+    path.join(process.cwd(), 'src', 'database', 'migrations', 'versions'),
+    path.join(process.cwd(), 'dist', 'database', 'migrations', 'versions'),
+  ];
 
   constructor(
     private readonly dataSource: DataSource,
@@ -63,13 +68,23 @@ export class MigrationService {
       const executedVersions = await this.getExecutedMigrations();
       const migrations: MigrationInfo[] = [];
 
-      // 扫描迁移目录
-      if (fs.existsSync(this.migrationsPath)) {
-        const files = fs.readdirSync(this.migrationsPath)
-          .filter(file => file.endsWith('.sql') || file.endsWith('.ts') || file.endsWith('.js'))
-          .sort();
+      // 扫描迁移目录（合并多路径）
+      const seen = new Set<string>();
+      const filesMerged: { file: string; full: string }[] = [];
+      for (const p of this.migrationsPaths) {
+        if (!p || !fs.existsSync(p)) continue;
+        const files = fs.readdirSync(p)
+          .filter(file => file.endsWith('.sql') || file.endsWith('.ts') || file.endsWith('.js'));
+        for (const f of files) {
+          if (seen.has(f)) continue;
+          seen.add(f);
+          filesMerged.push({ file: f, full: path.join(p, f) });
+        }
+      }
+      filesMerged.sort((a,b)=> a.file.localeCompare(b.file));
 
-        for (const file of files) {
+      for (const item of filesMerged) {
+        const file = item.file;
           const version = file.split('-')[0];
           const base = file.replace(/\.(sql|ts|js)$/i, '');
           const name = base.substring(version.length + 1);
@@ -79,7 +94,6 @@ export class MigrationService {
             name,
             executed: executedVersions.includes(version),
           });
-        }
       }
 
       return migrations;
@@ -123,25 +137,32 @@ export class MigrationService {
   private async executeMigration(migration: MigrationInfo): Promise<void> {
     try {
       const baseName = `${migration.version}-${migration.name}`;
-      const sqlPath = path.join(this.migrationsPath, `${baseName}.sql`);
-      const tsPath = path.join(this.migrationsPath, `${baseName}.ts`);
-      const jsPath = path.join(this.migrationsPath, `${baseName}.js`);
+      const resolveFromPaths = (ext: string) => this.migrationsPaths.map(p => path.join(p, `${baseName}.${ext}`));
+      const firstExisting = (paths: string[]) => paths.find(p => fs.existsSync(p));
+      const sqlPath = firstExisting(resolveFromPaths('sql'));
+      const tsPath = firstExisting(resolveFromPaths('ts'));
+      const jsPath = firstExisting(resolveFromPaths('js'));
 
       this.logger.log(`执行迁移: ${migration.version} - ${migration.name}`);
 
-      if (fs.existsSync(sqlPath)) {
-        // SQL 迁移：按分号拆分逐条执行，避免多语句语法错误
+      if (sqlPath && fs.existsSync(sqlPath)) {
+        // SQL 迁移：移除行级注释后按分号拆分逐条执行
         const raw = fs.readFileSync(sqlPath, 'utf8');
-        const statements = raw
-          .split(/;\s*\n|;\r?\n|;\s*$/gm)
+        const cleaned = raw
+          .split(/\r?\n/g)
+          .map(l => l.trim())
+          .filter(l => l && !l.startsWith('--'))
+          .join('\n');
+        const statements = cleaned
+          .split(/;\s*(?:\r?\n|$)/g)
           .map(s => s.trim())
-          .filter(s => s && !s.startsWith('--'));
+          .filter(s => s);
         for (const stmt of statements) {
           await this.dataSource.query(stmt);
         }
-      } else if (fs.existsSync(tsPath) || fs.existsSync(jsPath)) {
+      } else if ((tsPath && fs.existsSync(tsPath)) || (jsPath && fs.existsSync(jsPath))) {
         // TS/JS 迁移：动态导入并执行 up()
-        const modPath = fs.existsSync(tsPath) ? tsPath : jsPath;
+        const modPath = tsPath && fs.existsSync(tsPath) ? tsPath : (jsPath as string);
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const mod = require(modPath);
         const Exported = Object.values(mod).find(
@@ -177,11 +198,13 @@ export class MigrationService {
       const timestamp = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
       const version = `${timestamp}`;
       const fileName = `${version}-${name}.sql`;
-      const filePath = path.join(this.migrationsPath, fileName);
+      // 选取可写目录（优先 src，其次 dist，再次 __dirname）
+      const targetDir = this.migrationsPaths.find(p => p && fs.existsSync(p)) || this.migrationsPaths[0];
+      const filePath = path.join(targetDir, fileName);
 
       // 确保目录存在
-      if (!fs.existsSync(this.migrationsPath)) {
-        fs.mkdirSync(this.migrationsPath, { recursive: true });
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
       }
 
       // 创建迁移文件模板
