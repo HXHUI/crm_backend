@@ -6,6 +6,7 @@ import { Customer, CustomerType, CustomerPoolType } from '../../entities/custome
 import { Contact, ContactType } from '../../entities/contact.entity';
 import { Opportunity, OpportunityStage, OpportunityStatus } from '../../entities/opportunity.entity';
 import { Activity, ActivityType, ActivityStatus, RelatedToType } from '../../entities/activity.entity';
+import { Member } from '../../entities/member.entity';
 
 export interface CreateLeadDto {
   name?: string;
@@ -31,6 +32,7 @@ export class LeadsService {
     @InjectRepository(Contact) private readonly contactRepo: Repository<Contact>,
     @InjectRepository(Opportunity) private readonly opportunityRepo: Repository<Opportunity>,
     @InjectRepository(Activity) private readonly activityRepo: Repository<Activity>,
+    @InjectRepository(Member) private readonly memberRepo: Repository<Member>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -46,13 +48,29 @@ export class LeadsService {
   }
 
   async findAll(tenantId: string, page = 1, limit = 10) {
-    const [items, total] = await this.leadRepo.findAndCount({
-      where: { tenantId },
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-    return { leads: items, total, page, limit };
+    const queryBuilder = this.leadRepo
+      .createQueryBuilder('lead')
+      .leftJoinAndSelect('lead.owner', 'owner')
+      .leftJoinAndSelect('owner.user', 'user')
+      .where('lead.tenantId = :tenantId', { tenantId })
+      .orderBy('lead.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await queryBuilder.getManyAndCount();
+
+    // 序列化 owner 字段
+    const serialized = items.map((lead) => ({
+      ...lead,
+      owner: lead.owner
+        ? {
+            id: lead.owner.id,
+            username: lead.owner.nickname || (lead as any).owner?.user?.username || null,
+          }
+        : null,
+    }));
+
+    return { leads: serialized, total, page, limit };
   }
 
   async convert(leadId: string, tenantId: string, operatorMemberId: string, options?: { amount?: number; expectedCloseDate?: string; assignToMemberId?: string; }) {

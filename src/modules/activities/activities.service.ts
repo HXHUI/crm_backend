@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Activity, ActivityType, ActivityStatus, RelatedToType, ActivityPriority } from '../../entities/activity.entity';
 import { Member } from '../../entities/member.entity';
+import { Customer } from '../../entities/customer.entity';
+import { Opportunity } from '../../entities/opportunity.entity';
 
 export interface CreateActivityDto {
   title: string;
@@ -48,9 +50,12 @@ export class ActivitiesService {
   constructor(
     @InjectRepository(Activity)
     private readonly activityRepository: Repository<Activity>,
-    // 相关实体校验改由调用方在业务链路中保证；活动表只记录关联
     @InjectRepository(Member)
     private readonly memberRepository: Repository<Member>,
+    @InjectRepository(Customer)
+    private readonly customerRepository: Repository<Customer>,
+    @InjectRepository(Opportunity)
+    private readonly opportunityRepository: Repository<Opportunity>,
   ) {}
 
   async createActivity(createActivityDto: CreateActivityDto, memberId: string, tenantId: string) {
@@ -97,6 +102,18 @@ export class ActivitiesService {
       .take(limit)
       .getManyAndCount();
 
+    // 获取所有关联对象的ID
+    const customerIds = records.filter(r => r.relatedToType === RelatedToType.CUSTOMER).map(r => r.relatedToId);
+    const opportunityIds = records.filter(r => r.relatedToType === RelatedToType.OPPORTUNITY).map(r => r.relatedToId);
+
+    // 批量查询关联对象
+    const customers = customerIds.length > 0 ? await this.customerRepository.findBy({ id: In(customerIds) }) : [];
+    const opportunities = opportunityIds.length > 0 ? await this.opportunityRepository.findBy({ id: In(opportunityIds) }) : [];
+
+    // 创建映射
+    const customerMap = new Map(customers.map(c => [c.id, c]));
+    const opportunityMap = new Map(opportunities.map(o => [o.id, o]));
+
     // 统一序列化 owner 字段，返回 username（优先昵称，其次系统用户名）
     const activities = records.map((a) => ({
       ...a,
@@ -106,6 +123,9 @@ export class ActivitiesService {
             username: a.owner.nickname || (a as any).owner?.user?.username || null,
           }
         : null,
+      // 添加关联对象信息
+      customer: a.relatedToType === RelatedToType.CUSTOMER ? customerMap.get(a.relatedToId) : null,
+      opportunity: a.relatedToType === RelatedToType.OPPORTUNITY ? opportunityMap.get(a.relatedToId) : null,
     }));
 
     return {

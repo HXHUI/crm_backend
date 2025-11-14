@@ -1,5 +1,6 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import { Member } from './member.entity';
 
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
 export type LeadRating = 'hot' | 'warm' | 'cold'
@@ -11,6 +12,10 @@ export class Lead extends BaseEntity {
 
   @Column({ name: 'owner_id', comment: '负责人ID' })
   ownerId: string;
+
+  @ManyToOne(() => Member, { eager: false })
+  @JoinColumn({ name: 'owner_id' })
+  owner?: Member;
 
   @Column({ nullable: true })
   name?: string;
