@@ -7,6 +7,9 @@
  */
 
 const { spawn } = require('child_process');
+const mysql = require('mysql2/promise');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config({ path: '.env' });
 
 async function runCommand(command, args = []) {
@@ -32,6 +35,56 @@ async function runCommand(command, args = []) {
   });
 }
 
+async function executeSqlFile(sqlFilePath) {
+  // 先连接到 MySQL 服务器（不指定数据库）
+  const serverConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 3306,
+    user: process.env.DB_USERNAME || 'root',
+    password: process.env.DB_PASSWORD || '',
+    multipleStatements: true,
+    charset: 'utf8mb4'
+  };
+
+  let connection;
+  try {
+    console.log(`📄 读取SQL文件: ${sqlFilePath}`);
+    const sql = fs.readFileSync(sqlFilePath, 'utf8');
+    
+    console.log('🔗 连接到MySQL服务器...');
+    connection = await mysql.createConnection(serverConfig);
+    
+    console.log('⚙️  执行SQL脚本...');
+    // 直接执行整个SQL文件（支持多语句）
+    try {
+      await connection.query(sql);
+      console.log('✅ SQL脚本执行完成');
+    } catch (error) {
+      // 忽略一些常见的错误（如表已存在、数据已存在等）
+      if (error.code === 'ER_TABLE_EXISTS_ERROR' || 
+          error.code === 'ER_DUP_ENTRY' ||
+          error.code === 'ER_DUP_KEYNAME' ||
+          error.message.includes('already exists') ||
+          error.message.includes('Duplicate entry')) {
+        console.log(`  ⚠️  部分操作已存在，继续执行...`);
+        // 即使有部分错误，也尝试继续
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error('❌ 执行SQL文件失败:', error.message);
+    if (error.code) {
+      console.error(`   错误代码: ${error.code}`);
+    }
+    throw error;
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
+  }
+}
+
 async function setupDatabase() {
   try {
     console.log('🎯 开始设置CRM数据库...');
@@ -42,8 +95,31 @@ async function setupDatabase() {
     await runCommand('node', ['scripts/create-database.js']);
     console.log('');
 
-    // 步骤2: 初始化数据库
-    console.log('🔧 步骤2: 初始化数据库');
+    // 步骤2: 执行 init-db.sql 创建表结构
+    console.log('📋 步骤2: 创建表结构');
+    const sqlFilePath = path.join(__dirname, 'init-db.sql');
+    if (!fs.existsSync(sqlFilePath)) {
+      throw new Error(`SQL文件不存在: ${sqlFilePath}`);
+    }
+    await executeSqlFile(sqlFilePath);
+    console.log('');
+
+    // 步骤3: 标记历史迁移为已完成（可选）
+    console.log('📌 步骤3: 标记历史迁移为已完成');
+    const markMigrationsFile = path.join(__dirname, 'mark-migrations-as-executed.sql');
+    if (fs.existsSync(markMigrationsFile)) {
+      try {
+        await executeSqlFile(markMigrationsFile);
+      } catch (error) {
+        console.log(`  ⚠️  标记迁移失败（可忽略）: ${error.message}`);
+      }
+    } else {
+      console.log('  ℹ️  跳过：mark-migrations-as-executed.sql 不存在');
+    }
+    console.log('');
+
+    // 步骤4: 初始化数据库（插入基础数据）
+    console.log('🔧 步骤4: 插入基础数据');
     await runCommand('npm', ['run', 'db:init']);
     console.log('');
 
@@ -78,8 +154,9 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log('');
   console.log('功能:');
   console.log('  1. 创建数据库 (如果不存在)');
-  console.log('  2. 初始化数据库结构');
-  console.log('  3. 插入基础数据');
+  console.log('  2. 执行 init-db.sql 创建表结构');
+  console.log('  3. 标记历史迁移为已完成');
+  console.log('  4. 插入基础数据');
   console.log('');
   console.log('环境变量:');
   console.log('  需要配置.env文件中的数据库连接信息');

@@ -1,9 +1,8 @@
--- Migration: add-customer-tags
--- Version: 20250920195413
--- Created: 2025-09-20T19:54:13.000Z
--- Description: 为客户表添加标签功能
+-- Migration: AddCustomerTagsEntities
+-- Version: 20250922010000
+-- Description: 创建客户标签表和关联表，并插入默认标签数据
 
--- 添加客户标签表
+-- 创建客户标签表
 CREATE TABLE IF NOT EXISTS customer_tags (
   id VARCHAR(36) PRIMARY KEY,
   name VARCHAR(100) NOT NULL COMMENT '标签名称',
@@ -32,13 +31,54 @@ CREATE TABLE IF NOT EXISTS customer_tag_relations (
   FOREIGN KEY (tag_id) REFERENCES customer_tags(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 插入默认标签数据
-INSERT INTO customer_tags (id, name, color, description, tenant_id, created_at, updated_at) VALUES
-(UUID(), '重要客户', '#f5222d', '重要客户标签', (SELECT id FROM tenants LIMIT 1), NOW(), NOW()),
-(UUID(), '潜在客户', '#fa8c16', '潜在客户标签', (SELECT id FROM tenants LIMIT 1), NOW(), NOW()),
-(UUID(), 'VIP客户', '#722ed1', 'VIP客户标签', (SELECT id FROM tenants LIMIT 1), NOW(), NOW())
-ON DUPLICATE KEY UPDATE updated_at = NOW();
+-- 插入默认标签数据（仅当存在租户时）
+-- 为每个租户创建默认标签
+INSERT INTO customer_tags (id, name, color, description, tenant_id, created_at, updated_at)
+SELECT 
+  UUID() as id,
+  '重要客户' as name,
+  '#f5222d' as color,
+  '重要客户标签' as description,
+  t.id as tenant_id,
+  NOW() as created_at,
+  NOW() as updated_at
+FROM tenants t
+WHERE NOT EXISTS (
+  SELECT 1 FROM customer_tags ct 
+  WHERE ct.tenant_id = t.id AND ct.name = '重要客户'
+);
+
+INSERT INTO customer_tags (id, name, color, description, tenant_id, created_at, updated_at)
+SELECT 
+  UUID() as id,
+  '潜在客户' as name,
+  '#fa8c16' as color,
+  '潜在客户标签' as description,
+  t.id as tenant_id,
+  NOW() as created_at,
+  NOW() as updated_at
+FROM tenants t
+WHERE NOT EXISTS (
+  SELECT 1 FROM customer_tags ct 
+  WHERE ct.tenant_id = t.id AND ct.name = '潜在客户'
+);
+
+INSERT INTO customer_tags (id, name, color, description, tenant_id, created_at, updated_at)
+SELECT 
+  UUID() as id,
+  'VIP客户' as name,
+  '#722ed1' as color,
+  'VIP客户标签' as description,
+  t.id as tenant_id,
+  NOW() as created_at,
+  NOW() as updated_at
+FROM tenants t
+WHERE NOT EXISTS (
+  SELECT 1 FROM customer_tags ct 
+  WHERE ct.tenant_id = t.id AND ct.name = 'VIP客户'
+);
 
 -- 回滚语句
 -- DROP TABLE IF EXISTS customer_tag_relations;
 -- DROP TABLE IF EXISTS customer_tags;
+

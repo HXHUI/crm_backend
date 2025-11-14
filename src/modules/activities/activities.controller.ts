@@ -78,7 +78,7 @@ export class ActivitiesController {
 
   @Get(':id')
   async findActivityById(@Param('id') id: string, @CurrentUser() user: any) {
-    const activity = await this.activitiesService.findActivityById(id, user.memberId);
+    const activity = await this.activitiesService.findActivityById(parseInt(id, 10), user.memberId);
     return {
       code: 200,
       message: '获取活动详情成功',
@@ -92,7 +92,7 @@ export class ActivitiesController {
     @Body() updateActivityDto: UpdateActivityDto,
     @CurrentUser() user: any,
   ) {
-    const activity = await this.activitiesService.updateActivity(id, updateActivityDto, user.memberId);
+    const activity = await this.activitiesService.updateActivity(parseInt(id, 10), updateActivityDto, user.memberId);
     return {
       code: 200,
       message: '更新活动成功',
@@ -102,7 +102,7 @@ export class ActivitiesController {
 
   @Patch(':id/start')
   async startActivity(@Param('id') id: string, @CurrentUser() user: any) {
-    const activity = await this.activitiesService.startActivity(id, user.memberId);
+    const activity = await this.activitiesService.startActivity(parseInt(id, 10), user.memberId);
     return {
       code: 200,
       message: '开始活动成功',
@@ -116,7 +116,7 @@ export class ActivitiesController {
     @Body() body: { outcome: string },
     @CurrentUser() user: any,
   ) {
-    const activity = await this.activitiesService.completeActivity(id, body.outcome, user.memberId);
+    const activity = await this.activitiesService.completeActivity(parseInt(id, 10), body.outcome, user.memberId);
     return {
       code: 200,
       message: '完成活动成功',
@@ -127,7 +127,7 @@ export class ActivitiesController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async deleteActivity(@Param('id') id: string, @CurrentUser() user: any) {
-    await this.activitiesService.deleteActivity(id, user.memberId);
+    await this.activitiesService.deleteActivity(parseInt(id, 10), user.memberId);
     return {
       code: 200,
       message: '删除活动成功'
@@ -137,7 +137,7 @@ export class ActivitiesController {
   @Delete('batch')
   @HttpCode(HttpStatus.OK)
   async deleteBatchActivities(@Body() body: { ids: string[] }, @CurrentUser() user: any) {
-    await this.activitiesService.deleteBatchActivities(body.ids, user.memberId);
+    await this.activitiesService.deleteBatchActivities(body.ids.map(id => parseInt(id, 10)), user.memberId);
     return {
       code: 200,
       message: '批量删除活动成功'

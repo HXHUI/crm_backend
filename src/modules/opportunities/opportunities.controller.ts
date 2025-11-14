@@ -24,7 +24,9 @@ export class OpportunitiesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createOpportunity(@Body() createOpportunityDto: CreateOpportunityDto, @CurrentUser() user: any) {
-    const opportunity = await this.opportunitiesService.createOpportunity(createOpportunityDto, user.memberId, user.tenantId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const opportunity = await this.opportunitiesService.createOpportunity(createOpportunityDto, memberId, tenantId);
     return {
       code: 201,
       message: '创建商机成功',
@@ -39,7 +41,9 @@ export class OpportunitiesController {
     @Query('customerId') customerId?: string,
     @CurrentUser() user?: any,
   ) {
-    const result = await this.opportunitiesService.findAllOpportunities(user.memberId, user.tenantId, page, limit, customerId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const result = await this.opportunitiesService.findAllOpportunities(memberId, tenantId, page, limit, customerId ? parseInt(customerId, 10) : undefined);
     return {
       code: 200,
       message: '获取商机列表成功',
@@ -49,7 +53,8 @@ export class OpportunitiesController {
 
   @Get('stats')
   async getOpportunityStats(@CurrentUser() user: any) {
-    const stats = await this.opportunitiesService.getOpportunityStats(user.memberId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const stats = await this.opportunitiesService.getOpportunityStats(memberId);
     return {
       code: 200,
       message: '获取商机统计成功',
@@ -59,7 +64,9 @@ export class OpportunitiesController {
 
   @Get(':id')
   async findOpportunityById(@Param('id') id: string, @CurrentUser() user: any) {
-    const opportunity = await this.opportunitiesService.findOpportunityById(id, user.memberId, user.tenantId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const opportunity = await this.opportunitiesService.findOpportunityById(parseInt(id, 10), memberId, tenantId);
     return {
       code: 200,
       message: '获取商机详情成功',
@@ -73,7 +80,9 @@ export class OpportunitiesController {
     @Body() updateOpportunityDto: UpdateOpportunityDto,
     @CurrentUser() user: any,
   ) {
-    const opportunity = await this.opportunitiesService.updateOpportunity(id, updateOpportunityDto, user.memberId, user.tenantId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const opportunity = await this.opportunitiesService.updateOpportunity(parseInt(id, 10), updateOpportunityDto, memberId, tenantId);
     return {
       code: 200,
       message: '更新商机成功',
@@ -87,7 +96,8 @@ export class OpportunitiesController {
     @Body() body: { stage: OpportunityStage },
     @CurrentUser() user: any,
   ) {
-    const opportunity = await this.opportunitiesService.updateOpportunityStage(id, body.stage, user.memberId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const opportunity = await this.opportunitiesService.updateOpportunityStage(parseInt(id, 10), body.stage, memberId);
     return {
       code: 200,
       message: '更新商机阶段成功',
@@ -101,7 +111,8 @@ export class OpportunitiesController {
     @Body() body: { status: OpportunityStatus },
     @CurrentUser() user: any,
   ) {
-    const opportunity = await this.opportunitiesService.updateOpportunityStatus(id, body.status, user.memberId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const opportunity = await this.opportunitiesService.updateOpportunityStatus(parseInt(id, 10), body.status, memberId);
     return {
       code: 200,
       message: '更新商机状态成功',
@@ -115,7 +126,8 @@ export class OpportunitiesController {
     @Body() body: { status: 'closed_won' | 'closed_lost' },
     @CurrentUser() user: any,
   ) {
-    const opportunity = await this.opportunitiesService.closeOpportunity(id, body.status, user.memberId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const opportunity = await this.opportunitiesService.closeOpportunity(parseInt(id, 10), body.status, memberId);
     return {
       code: 200,
       message: '关闭商机成功',
@@ -126,7 +138,9 @@ export class OpportunitiesController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async deleteOpportunity(@Param('id') id: string, @CurrentUser() user: any) {
-    await this.opportunitiesService.deleteOpportunity(id, user.memberId, user.tenantId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    await this.opportunitiesService.deleteOpportunity(parseInt(id, 10), memberId, tenantId);
     return {
       code: 200,
       message: '删除商机成功'

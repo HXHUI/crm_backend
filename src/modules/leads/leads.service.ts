@@ -36,7 +36,7 @@ export class LeadsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(dto: CreateLeadDto, tenantId: string, ownerId: string) {
+  async create(dto: CreateLeadDto, tenantId: number, ownerId: number) {
     const lead = this.leadRepo.create({
       ...dto,
       tenantId,
@@ -47,7 +47,7 @@ export class LeadsService {
     return this.leadRepo.save(lead);
   }
 
-  async findAll(tenantId: string, page = 1, limit = 10) {
+  async findAll(tenantId: number, page = 1, limit = 10) {
     const queryBuilder = this.leadRepo
       .createQueryBuilder('lead')
       .leftJoinAndSelect('lead.owner', 'owner')
@@ -73,7 +73,7 @@ export class LeadsService {
     return { leads: serialized, total, page, limit };
   }
 
-  async convert(leadId: string, tenantId: string, operatorMemberId: string, options?: { amount?: number; expectedCloseDate?: string; assignToMemberId?: string; }) {
+  async convert(leadId: number, tenantId: number, operatorMemberId: number, options?: { amount?: number; expectedCloseDate?: string; assignToMemberId?: number; }) {
     const lead = await this.leadRepo.findOne({ where: { id: leadId, tenantId } });
     if (!lead) throw new NotFoundException('线索不存在');
     if (lead.status === 'converted') throw new ForbiddenException('线索已转化');

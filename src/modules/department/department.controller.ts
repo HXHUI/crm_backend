@@ -50,7 +50,7 @@ export class DepartmentController {
   // GET /departments/:id - 获取特定部门详情
   @Get(':id')
   async getDepartment(@Param('id') id: string, @CurrentUser() user: any) {
-    const result = await this.departmentService.getDepartmentById(id, user.tenantId);
+    const result = await this.departmentService.getDepartmentById(parseInt(id, 10), user.tenantId);
     return {
       code: 200,
       message: '获取部门详情成功',
@@ -80,7 +80,7 @@ export class DepartmentController {
     @Body() updateDepartmentDto: UpdateDepartmentDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.departmentService.updateDepartment(id, updateDepartmentDto, user.tenantId);
+    const result = await this.departmentService.updateDepartment(parseInt(id, 10), updateDepartmentDto, user.tenantId);
     return {
       code: 200,
       message: '更新部门成功',
@@ -94,7 +94,7 @@ export class DepartmentController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ) {
-    await this.departmentService.deleteDepartment(id, user.tenantId);
+    await this.departmentService.deleteDepartment(parseInt(id, 10), user.tenantId);
     return {
       code: 200,
       message: '删除部门成功'
@@ -110,7 +110,7 @@ export class DepartmentController {
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
   ) {
-    const result = await this.departmentService.getDepartmentMembers(id, user.tenantId, page, limit, search);
+    const result = await this.departmentService.getDepartmentMembers(parseInt(id, 10), user.tenantId, page, limit, search);
     return {
       code: 200,
       message: '获取部门成员成功',
@@ -126,7 +126,7 @@ export class DepartmentController {
     @Body() body: { memberId: string; position?: string; isManager?: boolean },
     @CurrentUser() user: any,
   ) {
-    const result = await this.departmentService.addDepartmentMember(id, body.memberId, body.position, body.isManager, user.tenantId);
+    const result = await this.departmentService.addDepartmentMember(parseInt(id, 10), parseInt(body.memberId, 10), body.position, body.isManager, user.tenantId);
     return {
       code: 201,
       message: '添加部门成员成功',
@@ -142,7 +142,7 @@ export class DepartmentController {
     @Param('memberId') memberId: string,
     @CurrentUser() user: any,
   ) {
-    await this.departmentService.removeDepartmentMember(id, memberId, user.tenantId);
+    await this.departmentService.removeDepartmentMember(parseInt(id, 10), parseInt(memberId, 10), user.tenantId);
     return {
       code: 204,
       message: '移除部门成员成功'

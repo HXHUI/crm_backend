@@ -50,7 +50,7 @@ export class UserController {
   // GET /users/:id - 获取特定用户详情
   @Get(':id')
   async getUser(@Param('id') id: string) {
-    const result = await this.userService.getUserById(id);
+    const result = await this.userService.getUserById(parseInt(id, 10));
     return {
       code: 200,
       message: '获取用户详情成功',
@@ -65,7 +65,8 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.userService.updateUser(id, updateUserDto, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const result = await this.userService.updateUser(parseInt(id, 10), updateUserDto, userId);
     return {
       code: 200,
       message: '更新用户信息成功',
@@ -80,7 +81,8 @@ export class UserController {
     @Body() updateProfileDto: UpdateUserProfileDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.userService.updateUserProfile(id, updateProfileDto, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const result = await this.userService.updateUserProfile(parseInt(id, 10), updateProfileDto, userId);
     return {
       code: 200,
       message: '更新个人资料成功',
@@ -96,7 +98,8 @@ export class UserController {
     @Body() body: { status: 'active' | 'inactive' | 'suspended' },
     @CurrentUser() user: any,
   ) {
-    const result = await this.userService.updateUserStatus(id, body.status as any, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const result = await this.userService.updateUserStatus(parseInt(id, 10), body.status as any, userId);
     return {
       code: 200,
       message: '更新用户状态成功',
@@ -107,7 +110,7 @@ export class UserController {
   // GET /users/:id/members - 获取用户的租户成员记录
   @Get(':id/members')
   async getUserMembers(@Param('id') id: string) {
-    const result = await this.userService.getUserMembers(id);
+    const result = await this.userService.getUserMembers(parseInt(id, 10));
     return {
       code: 200,
       message: '获取用户成员记录成功',

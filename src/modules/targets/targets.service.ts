@@ -54,9 +54,9 @@ export class TargetsService {
     return result
   }
 
-  async saveYear(body: any, userId: string) {
+  async saveYear(body: any, userId: number) {
     const { ownerType, ownerIds, targetType, unit, year, months, tenantId } = body
-    const targetOwnerIds: string[] = Array.isArray(ownerIds) && ownerIds.length ? ownerIds : []
+    const targetOwnerIds: number[] = Array.isArray(ownerIds) && ownerIds.length ? ownerIds.map((id: any) => typeof id === 'string' ? parseInt(id, 10) : id) : []
     if (!targetOwnerIds.length) return { success: false, message: 'ownerIds is empty' }
 
     for (const oid of targetOwnerIds) {
@@ -92,7 +92,7 @@ export class TargetsService {
     return { success: true }
   }
 
-  async ownerOptions(ownerType: 'department'|'member', tenantId?: string) {
+  async ownerOptions(ownerType: 'department'|'member', tenantId?: number) {
     if (ownerType === 'member') {
       const list = await this.memberRepo.find({
         where: tenantId ? ({ tenantId } as any) : ({} as any),

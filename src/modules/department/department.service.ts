@@ -8,16 +8,16 @@ import { Tenant } from '../../entities/tenant.entity';
 
 export interface CreateDepartmentDto {
   name: string;
-  parentId?: string;
+  parentId?: number;
   description?: string;
-  managerId?: string;
+  managerId?: number;
 }
 
 export interface UpdateDepartmentDto {
   name?: string;
-  parentId?: string;
+  parentId?: number;
   description?: string;
-  managerId?: string;
+  managerId?: number;
 }
 
 @Injectable()
@@ -33,7 +33,7 @@ export class DepartmentService {
     private readonly tenantRepository: Repository<Tenant>,
   ) {}
 
-  async getDepartmentTree(tenantId: string) {
+  async getDepartmentTree(tenantId: number) {
     // 获取租户信息
     const tenant = await this.tenantRepository.findOne({
       where: { id: tenantId }
@@ -47,7 +47,7 @@ export class DepartmentService {
     const departments = await this.departmentRepository.find({
       where: { tenantId },
       relations: ['manager', 'parent'],
-      order: { sortOrder: 'ASC', createdAt: 'ASC' }
+      order: { sort: 'ASC', createdAt: 'ASC' }
     });
 
     // 构建树形结构
@@ -101,7 +101,7 @@ export class DepartmentService {
     return [tenantRoot];
   }
 
-  async getDepartments(tenantId: string, page: number, limit: number, search?: string) {
+  async getDepartments(tenantId: number, page: number, limit: number, search?: string) {
     const queryBuilder = this.departmentRepository.createQueryBuilder('department')
       .leftJoinAndSelect('department.manager', 'manager')
       .leftJoinAndSelect('department.parent', 'parent')
@@ -127,7 +127,7 @@ export class DepartmentService {
     };
   }
 
-  async getDepartmentById(id: string, tenantId: string) {
+  async getDepartmentById(id: number, tenantId: number) {
     const department = await this.departmentRepository.findOne({
       where: { id, tenantId },
       relations: ['manager', 'parent', 'children']
@@ -140,7 +140,7 @@ export class DepartmentService {
     return department;
   }
 
-  async createDepartment(createDepartmentDto: CreateDepartmentDto, tenantId: string) {
+  async createDepartment(createDepartmentDto: CreateDepartmentDto, tenantId: number) {
     console.log('Creating department:', createDepartmentDto, 'tenantId:', tenantId);
     
     // 验证tenantId
@@ -152,7 +152,7 @@ export class DepartmentService {
       const { name, parentId, description, managerId } = createDepartmentDto;
 
       // 检查父部门是否存在
-      if (parentId && parentId !== 'root') {
+      if (parentId) {
         const parentDepartment = await this.departmentRepository.findOne({
           where: { id: parentId, tenantId }
         });
@@ -185,11 +185,11 @@ export class DepartmentService {
       // 创建部门
       const department = this.departmentRepository.create({
         name,
-        parentId: parentId === 'root' ? null : (parentId || null),
+        parentId: parentId || null,
         description: description || null,
         managerId: managerId || null,
         tenantId,
-        sortOrder: 0
+        sort: 0
       });
 
       console.log('Department entity created:', department);
@@ -205,7 +205,7 @@ export class DepartmentService {
     }
   }
 
-  async updateDepartment(id: string, updateDepartmentDto: UpdateDepartmentDto, tenantId: string) {
+  async updateDepartment(id: number, updateDepartmentDto: UpdateDepartmentDto, tenantId: number) {
     const department = await this.departmentRepository.findOne({
       where: { id, tenantId }
     });
@@ -263,7 +263,7 @@ export class DepartmentService {
   }
 
 
-  async getDepartmentMembers(departmentId: string, tenantId: string, page: number, limit: number, search?: string) {
+  async getDepartmentMembers(departmentId: number, tenantId: number, page: number, limit: number, search?: string) {
     // 如果是租户ID，获取所有成员
     if (departmentId === tenantId) {
       const queryBuilder = this.memberRepository.createQueryBuilder('member')
@@ -324,7 +324,7 @@ export class DepartmentService {
     };
   }
 
-  async addDepartmentMember(departmentId: string, memberId: string, position: string, isManager: boolean, tenantId: string) {
+  async addDepartmentMember(departmentId: number, memberId: number, position: string, isManager: boolean, tenantId: number) {
     // 检查部门是否存在
     const department = await this.departmentRepository.findOne({
       where: { id: departmentId, tenantId }
@@ -355,15 +355,14 @@ export class DepartmentService {
       throw new ForbiddenException('成员已在部门中');
     }
 
-    // 添加成员到部门
+    // 添加成员到部门（注意：Member 实体没有 isManager 字段）
     member.departments = [...(member.departments || []), department];
     member.position = position || member.position;
-    member.isManager = isManager || member.isManager;
 
     return await this.memberRepository.save(member);
   }
 
-  async removeDepartmentMember(departmentId: string, memberId: string, tenantId: string) {
+  async removeDepartmentMember(departmentId: number, memberId: number, tenantId: number) {
     // 检查部门是否存在
     const department = await this.departmentRepository.findOne({
       where: { id: departmentId, tenantId }
@@ -383,14 +382,13 @@ export class DepartmentService {
       throw new NotFoundException('成员不存在');
     }
 
-    // 移除成员与部门的关系
+    // 移除成员与部门的关系（注意：Member 实体没有 isManager 字段）
     member.departments = member.departments?.filter(dept => dept.id !== departmentId) || [];
-    member.isManager = false; // 移除部门关系时取消负责人身份
 
     await this.memberRepository.save(member);
   }
 
-  async deleteDepartment(id: string, tenantId: string) {
+  async deleteDepartment(id: number, tenantId: number) {
     // 查找部门
     const department = await this.departmentRepository.findOne({
       where: { id, tenantId },
@@ -422,9 +420,9 @@ export class DepartmentService {
     await this.departmentRepository.remove(department);
   }
 
-  private async wouldCreateCircularReference(departmentId: string, newParentId: string, tenantId: string): Promise<boolean> {
-    let currentParentId = newParentId;
-    const visited = new Set<string>();
+  private async wouldCreateCircularReference(departmentId: number, newParentId: number, tenantId: number): Promise<boolean> {
+    let currentParentId: number | undefined = newParentId;
+    const visited = new Set<number>();
 
     while (currentParentId) {
       if (visited.has(currentParentId)) {

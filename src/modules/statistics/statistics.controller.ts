@@ -13,7 +13,7 @@ export class StatisticsController {
     @Request() req: any,
     @Query('period') period: 'week' | 'month' | 'quarter' | 'year' = 'month',
   ) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const data = await this.statisticsService.getSalesBrief(tenantId, period);
     return { code: 200, message: '获取销售简报成功', data };
   }
@@ -24,7 +24,7 @@ export class StatisticsController {
     @Request() req: any,
     @Query('period') period: 'week' | 'month' | 'quarter' | 'year' = 'month',
   ) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const data = await this.statisticsService.getDataSummary(tenantId, period);
     return { code: 200, message: '获取数据汇总成功', data };
   }
@@ -35,8 +35,8 @@ export class StatisticsController {
     @Request() req: any,
     @Query('scope') scope: 'me' | 'all' = 'me',
   ) {
-    const tenantId = req.user.tenantId;
-    const memberId = scope === 'me' ? req.user.memberId : undefined;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const memberId = scope === 'me' ? (typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId) : undefined;
     const data = await this.statisticsService.getCustomerReminders(tenantId, memberId);
     return { code: 200, message: '获取客户遗忘提醒成功', data };
   }
@@ -47,8 +47,8 @@ export class StatisticsController {
     @Request() req: any,
     @Query('scope') scope: 'me' | 'all' = 'me',
   ) {
-    const tenantId = req.user.tenantId;
-    const memberId = scope === 'me' ? req.user.memberId : undefined;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const memberId = scope === 'me' ? (typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId) : undefined;
     const data = await this.statisticsService.getSalesFunnel(tenantId, memberId);
     return { code: 200, message: '获取销售漏斗成功', data };
   }
@@ -59,8 +59,8 @@ export class StatisticsController {
     @Request() req: any,
     @Query('scope') scope: 'me' | 'all' = 'me',
   ) {
-    const tenantId = req.user.tenantId;
-    const memberId = scope === 'me' ? req.user.memberId : undefined;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const memberId = scope === 'me' ? (typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId) : undefined;
     const data = await this.statisticsService.getCustomerSourceDistribution(tenantId, memberId);
     return { code: 200, message: '获取客户来源分布成功', data };
   }
@@ -71,8 +71,8 @@ export class StatisticsController {
     @Request() req: any,
     @Query('scope') scope: 'me' | 'all' = 'me',
   ) {
-    const tenantId = req.user.tenantId;
-    const memberId = scope === 'me' ? req.user.memberId : undefined;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const memberId = scope === 'me' ? (typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId) : undefined;
     const data = await this.statisticsService.getCustomerMapData(tenantId, memberId);
     return { code: 200, message: '获取客户地图数据成功', data };
   }
@@ -85,8 +85,8 @@ export class StatisticsController {
     @Query('period') period: 'week' | 'month' | 'quarter' | 'year' = 'month',
     @Query('metric') metric: 'newCustomers' | 'newContacts' | 'newActivities' | 'paymentAmount' | 'contractAmount' | 'contractCount' = 'newCustomers',
   ) {
-    const tenantId = req.user.tenantId;
-    const memberId = req.user.memberId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const memberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
     const data = await this.statisticsService.getRankingList(tenantId, memberId, scope, period, metric);
     return { code: 200, message: '获取排行榜数据成功', data };
   }

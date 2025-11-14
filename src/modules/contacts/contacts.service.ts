@@ -11,7 +11,7 @@ export class ContactsService {
     private contactRepository: Repository<Contact>,
   ) {}
 
-  async create(createDto: CreateContactDto, tenantId: string): Promise<Contact> {
+  async create(createDto: CreateContactDto, tenantId: number): Promise<Contact> {
     // 如果设置为主要联系人，需要先将该客户的其他联系人设为非主要
     if (createDto.isPrimary) {
       await this.contactRepository.update(
@@ -28,7 +28,7 @@ export class ContactsService {
     return await this.contactRepository.save(contact);
   }
 
-  async findAll(queryDto: QueryContactDto, tenantId: string) {
+  async findAll(queryDto: QueryContactDto, tenantId: number) {
     const { name, email, phone, type, customerId, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
 
@@ -73,7 +73,7 @@ export class ContactsService {
     };
   }
 
-  async findOne(id: string, tenantId: string): Promise<Contact> {
+  async findOne(id: number, tenantId: number): Promise<Contact> {
     const contact = await this.contactRepository
       .createQueryBuilder('contact')
       .leftJoinAndSelect('contact.customer', 'customer')
@@ -89,7 +89,7 @@ export class ContactsService {
     return contact;
   }
 
-  async update(id: string, updateDto: UpdateContactDto, tenantId: string): Promise<Contact> {
+  async update(id: number, updateDto: UpdateContactDto, tenantId: number): Promise<Contact> {
     const contact = await this.findOne(id, tenantId);
 
     // 如果设置为主要联系人，需要先将该客户的其他联系人设为非主要
@@ -104,12 +104,12 @@ export class ContactsService {
     return await this.contactRepository.save(contact);
   }
 
-  async remove(id: string, tenantId: string): Promise<void> {
+  async remove(id: number, tenantId: number): Promise<void> {
     const contact = await this.findOne(id, tenantId);
     await this.contactRepository.softDelete(id);
   }
 
-  async batchRemove(ids: string[], tenantId: string): Promise<void> {
+  async batchRemove(ids: number[], tenantId: number): Promise<void> {
     // 检查所有联系人是否存在且属于当前租户
     const contacts = await this.contactRepository
       .createQueryBuilder('contact')
@@ -125,7 +125,7 @@ export class ContactsService {
     await this.contactRepository.softDelete(ids);
   }
 
-  async getContactStats(tenantId: string) {
+  async getContactStats(tenantId: number) {
     const total = await this.contactRepository
       .createQueryBuilder('contact')
       .where('contact.tenantId = :tenantId', { tenantId })
@@ -155,7 +155,7 @@ export class ContactsService {
     };
   }
 
-  async getContactsByCustomer(customerId: string, tenantId: string) {
+  async getContactsByCustomer(customerId: number, tenantId: number) {
     return await this.contactRepository
       .createQueryBuilder('contact')
       .where('contact.customerId = :customerId', { customerId })

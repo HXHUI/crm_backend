@@ -53,9 +53,10 @@ export class TenantService {
     };
   }
 
-  async getTenantById(id: string) {
+  async getTenantById(id: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
     const tenant = await this.tenantRepository.findOne({
-      where: { id },
+      where: { id: idNum },
       relations: ['owner', 'members', 'members.user']
     });
 
@@ -66,14 +67,15 @@ export class TenantService {
     return tenant;
   }
 
-  async createTenant(createTenantDto: CreateTenantDto, ownerId: string) {
+  async createTenant(createTenantDto: CreateTenantDto, ownerId: string | number) {
     const { name, description } = createTenantDto;
+    const ownerIdNum = typeof ownerId === 'string' ? parseInt(ownerId, 10) : ownerId;
 
     // 创建租户（无slug）
     const tenant = this.tenantRepository.create({
       name,
       description,
-      ownerId,
+      ownerId: ownerIdNum,
       status: TenantStatus.ACTIVE,
     });
 
@@ -81,7 +83,7 @@ export class TenantService {
 
     // 创建租户所有者成员记录
     const member = this.memberRepository.create({
-      userId: ownerId,
+      userId: ownerIdNum,
       tenantId: savedTenant.id,
       status: MemberStatus.ACTIVE,
     });
@@ -91,9 +93,11 @@ export class TenantService {
     return savedTenant;
   }
 
-  async updateTenant(id: string, updateTenantDto: UpdateTenantDto, userId: string) {
+  async updateTenant(id: string | number, updateTenantDto: UpdateTenantDto, userId: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     const tenant = await this.tenantRepository.findOne({
-      where: { id },
+      where: { id: idNum },
     });
 
     if (!tenant) {
@@ -101,7 +105,7 @@ export class TenantService {
     }
 
     // 检查是否为租户所有者
-    if (tenant.ownerId !== userId) {
+    if (tenant.ownerId !== userIdNum) {
       throw new ForbiddenException('只有租户所有者才能修改租户信息');
     }
 
@@ -111,9 +115,11 @@ export class TenantService {
     return await this.tenantRepository.save(tenant);
   }
 
-  async deleteTenant(id: string, userId: string) {
+  async deleteTenant(id: string | number, userId: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     const tenant = await this.tenantRepository.findOne({
-      where: { id },
+      where: { id: idNum },
     });
 
     if (!tenant) {
@@ -121,22 +127,23 @@ export class TenantService {
     }
 
     // 检查是否为租户所有者
-    if (tenant.ownerId !== userId) {
+    if (tenant.ownerId !== userIdNum) {
       throw new ForbiddenException('只有租户所有者才能删除租户');
     }
 
     // 删除相关成员记录
-    await this.memberRepository.delete({ tenantId: id });
+    await this.memberRepository.delete({ tenantId: idNum });
     
     // 删除租户
-    await this.tenantRepository.delete(id);
+    await this.tenantRepository.delete(idNum);
   }
 
-  async getTenantMembers(tenantId: string, page: number, limit: number, search?: string) {
+  async getTenantMembers(tenantId: string | number, page: number, limit: number, search?: string) {
+    const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
     const queryBuilder = this.memberRepository.createQueryBuilder('member')
       .leftJoinAndSelect('member.user', 'user')
       .leftJoinAndSelect('member.tenant', 'tenant')
-      .where('member.tenantId = :tenantId', { tenantId });
+      .where('member.tenantId = :tenantId', { tenantId: tenantIdNum });
 
     if (search) {
       queryBuilder.andWhere('user.username LIKE :search OR user.email LIKE :search', {
@@ -158,10 +165,13 @@ export class TenantService {
     };
   }
 
-  async addTenantMember(tenantId: string, userId: string, role: string, operatorId: string) {
+  async addTenantMember(tenantId: string | number, userId: string | number, role: string, operatorId: string | number) {
+    const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    const operatorIdNum = typeof operatorId === 'string' ? parseInt(operatorId, 10) : operatorId;
     // 检查租户是否存在
     const tenant = await this.tenantRepository.findOne({
-      where: { id: tenantId },
+      where: { id: tenantIdNum },
     });
 
     if (!tenant) {
@@ -169,13 +179,13 @@ export class TenantService {
     }
 
     // 检查操作者是否为租户所有者
-    if (tenant.ownerId !== operatorId) {
+    if (tenant.ownerId !== operatorIdNum) {
       throw new ForbiddenException('只有租户所有者才能添加成员');
     }
 
     // 检查用户是否存在
     const user = await this.userRepository.findOne({
-      where: { id: userId },
+      where: { id: userIdNum },
     });
 
     if (!user) {
@@ -184,7 +194,7 @@ export class TenantService {
 
     // 检查用户是否已经是租户成员
     const existingMember = await this.memberRepository.findOne({
-      where: { tenantId, userId },
+      where: { tenantId: tenantIdNum, userId: userIdNum },
     });
 
     if (existingMember) {
@@ -193,18 +203,21 @@ export class TenantService {
 
     // 创建成员记录
     const member = this.memberRepository.create({
-      userId,
-      tenantId,
+      userId: userIdNum,
+      tenantId: tenantIdNum,
       status: MemberStatus.ACTIVE,
     });
 
     return await this.memberRepository.save(member);
   }
 
-  async removeTenantMember(tenantId: string, memberId: string, operatorId: string) {
+  async removeTenantMember(tenantId: string | number, memberId: string | number, operatorId: string | number) {
+    const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
+    const memberIdNum = typeof memberId === 'string' ? parseInt(memberId, 10) : memberId;
+    const operatorIdNum = typeof operatorId === 'string' ? parseInt(operatorId, 10) : operatorId;
     // 检查租户是否存在
     const tenant = await this.tenantRepository.findOne({
-      where: { id: tenantId },
+      where: { id: tenantIdNum },
     });
 
     if (!tenant) {
@@ -212,13 +225,13 @@ export class TenantService {
     }
 
     // 检查操作者是否为租户所有者
-    if (tenant.ownerId !== operatorId) {
+    if (tenant.ownerId !== operatorIdNum) {
       throw new ForbiddenException('只有租户所有者才能移除成员');
     }
 
     // 检查成员是否存在
     const member = await this.memberRepository.findOne({
-      where: { id: memberId, tenantId },
+      where: { id: memberIdNum, tenantId: tenantIdNum },
     });
 
     if (!member) {
@@ -230,6 +243,6 @@ export class TenantService {
       throw new ForbiddenException('不能移除租户所有者');
     }
 
-    await this.memberRepository.delete(memberId);
+    await this.memberRepository.delete(memberIdNum);
   }
 }

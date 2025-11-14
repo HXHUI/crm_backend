@@ -35,11 +35,11 @@ export class Tenant extends BaseEntity {
   config?: Record<string, any>;
 
   // 关联关系
-  @Column({ comment: '租户所有者ID' })
-  ownerId: string;
+  @Column({ name: 'owner_id', type: 'bigint', comment: '租户所有者ID' })
+  ownerId: number;
 
   @ManyToOne(() => User, (user) => user.ownedTenants)
-  @JoinColumn({ name: 'ownerId' })
+  @JoinColumn({ name: 'owner_id' })
   owner: User;
 
   @OneToMany(() => Member, (member) => member.tenant)

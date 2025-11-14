@@ -29,25 +29,22 @@ export class Member extends BaseEntity {
   @Column({ nullable: true, comment: '成员在租户中的职位' })
   position?: string;
 
-  @Column({ type: 'boolean', default: false, comment: '是否为部门负责人' })
-  isManager: boolean;
-
   @Column({ type: 'json', nullable: true, comment: '成员权限配置' })
   permissions?: Record<string, any>;
 
   // 关联关系
-  @Column({ comment: '用户ID' })
-  userId: string;
+  @Column({ name: 'user_id', type: 'bigint', comment: '用户ID' })
+  userId: number;
 
   @ManyToOne(() => User, (user) => user.members)
-  @JoinColumn({ name: 'userId' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ comment: '租户ID' })
-  tenantId: string;
+  @Column({ name: 'tenant_id', type: 'bigint', comment: '租户ID' })
+  tenantId: number;
 
   @ManyToOne(() => Tenant, (tenant) => tenant.members)
-  @JoinColumn({ name: 'tenantId' })
+  @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 
   @ManyToMany(() => Department, (department) => department.members)

@@ -32,7 +32,8 @@ export class RoleController {
     @Body() createRoleDto: CreateRoleDto,
     @CurrentUser() user: any,
   ) {
-    const role = await this.roleService.create(createRoleDto, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const role = await this.roleService.create(createRoleDto, tenantId);
     return {
       code: 201,
       message: '创建角色成功',
@@ -48,7 +49,8 @@ export class RoleController {
     @Query() queryDto: QueryRoleDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.roleService.findAll(queryDto, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const result = await this.roleService.findAll(queryDto, tenantId);
     return {
       code: 200,
       message: '查询成功',
@@ -61,7 +63,8 @@ export class RoleController {
    */
   @Get('options')
   async getRoleOptions(@CurrentUser() user: any) {
-    const options = await this.roleService.getRoleOptions(user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const options = await this.roleService.getRoleOptions(tenantId);
     return {
       code: 200,
       message: '查询成功',
@@ -77,7 +80,8 @@ export class RoleController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ) {
-    const role = await this.roleService.findOne(id, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const role = await this.roleService.findOne(parseInt(id, 10), tenantId);
     return {
       code: 200,
       message: '查询成功',
@@ -94,7 +98,8 @@ export class RoleController {
     @Body() updateRoleDto: UpdateRoleDto,
     @CurrentUser() user: any,
   ) {
-    const role = await this.roleService.update(id, updateRoleDto, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const role = await this.roleService.update(parseInt(id, 10), updateRoleDto, tenantId);
     return {
       code: 200,
       message: '更新角色成功',
@@ -111,7 +116,8 @@ export class RoleController {
     @Body() body: { isActive: boolean },
     @CurrentUser() user: any,
   ) {
-    const role = await this.roleService.updateStatus(id, body.isActive, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const role = await this.roleService.updateStatus(parseInt(id, 10), body.isActive, tenantId);
     return {
       code: 200,
       message: '更新角色状态成功',
@@ -127,7 +133,8 @@ export class RoleController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ) {
-    await this.roleService.remove(id, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    await this.roleService.remove(parseInt(id, 10), tenantId);
     return {
       code: 200,
       message: '删除角色成功',
@@ -142,7 +149,8 @@ export class RoleController {
     @Body() body: { ids: string[] },
     @CurrentUser() user: any,
   ) {
-    await this.roleService.removeBatch(body.ids, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    await this.roleService.removeBatch(body.ids.map(id => parseInt(id, 10)), tenantId);
     return {
       code: 200,
       message: '批量删除角色成功',

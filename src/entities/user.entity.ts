@@ -17,7 +17,7 @@ export class User extends BaseEntity {
   @Column({ unique: true, nullable: true, comment: '邮箱' })
   email?: string;
 
-  @Column({ comment: '密码哈希' })
+  @Column({ name: 'password_hash', comment: '密码哈希' })
   passwordHash: string;
 
   @Column({ unique: true, comment: '手机号' })
@@ -25,7 +25,6 @@ export class User extends BaseEntity {
 
   @Column({ nullable: true, comment: '头像URL' })
   avatar?: string;
-
 
   @Column({
     type: 'enum',
@@ -35,10 +34,10 @@ export class User extends BaseEntity {
   })
   status: UserStatus;
 
-  @Column({ nullable: true, comment: '最后登录时间' })
+  @Column({ name: 'last_login_at', nullable: true, comment: '最后登录时间' })
   lastLoginAt?: Date;
 
-  @Column({ nullable: true, comment: '最后登录IP' })
+  @Column({ name: 'last_login_ip', nullable: true, comment: '最后登录IP' })
   lastLoginIp?: string;
 
   // 关联关系

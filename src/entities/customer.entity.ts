@@ -48,7 +48,7 @@ export class Customer extends BaseEntity {
   })
   status: CustomerStatus;
 
-  @Column({ nullable: true, comment: '公司名称' })
+  @Column({ name: 'company_name', nullable: true, comment: '公司名称' })
   companyName?: string;
 
   @Column({ nullable: true, comment: '行业（字典key）' })
@@ -63,7 +63,7 @@ export class Customer extends BaseEntity {
   @Column({ type: 'json', nullable: true, comment: '客户标签' })
   tags?: string[];
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, comment: '预计价值' })
+  @Column({ name: 'estimated_value', type: 'decimal', precision: 10, scale: 2, nullable: true, comment: '预计价值' })
   estimatedValue?: number;
 
   @Column({ nullable: true, comment: '客户来源' })
@@ -95,8 +95,8 @@ export class Customer extends BaseEntity {
   addressDetail?: string;
 
   // 关联关系
-  @Column({ nullable: true, comment: '所属成员ID' })
-  ownerId?: string;
+  @Column({ name: 'ownerId', type: 'bigint', nullable: true, comment: '所属成员ID' })
+  ownerId?: number;
 
   @ManyToOne(() => Member, (member) => member.customers)
   @JoinColumn({ name: 'ownerId' })
@@ -113,6 +113,6 @@ export class Customer extends BaseEntity {
   // activities?: Activity[];
 
   // 租户ID
-  @Column({ name: 'tenant_id', nullable: true, comment: '租户ID' })
-  tenantId?: string;
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
+  tenantId?: number;
 }

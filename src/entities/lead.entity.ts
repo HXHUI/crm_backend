@@ -1,17 +1,27 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { BaseEntity } from './base.entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Member } from './member.entity';
 
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'unqualified' | 'converted'
 export type LeadRating = 'hot' | 'warm' | 'cold'
 
 @Entity('leads')
-export class Lead extends BaseEntity {
-  @Column({ name: 'tenant_id', comment: '租户ID' })
-  tenantId: string;
+export class Lead {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @Column({ name: 'owner_id', comment: '负责人ID' })
-  ownerId: string;
+  @CreateDateColumn({ name: 'createdAt', type: 'timestamp', nullable: true, default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updatedAt', type: 'timestamp', nullable: true, default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
+
+  @DeleteDateColumn({ name: 'deletedAt', type: 'timestamp', nullable: true })
+  deletedAt?: Date;
+  @Column({ name: 'tenant_id', type: 'bigint', comment: '租户ID' })
+  tenantId: number;
+
+  @Column({ name: 'owner_id', type: 'bigint', comment: '负责人ID' })
+  ownerId: number;
 
   @ManyToOne(() => Member, { eager: false })
   @JoinColumn({ name: 'owner_id' })
@@ -41,20 +51,20 @@ export class Lead extends BaseEntity {
   @Column({ type: 'enum', enum: ['hot','warm','cold'], default: 'warm' })
   rating: LeadRating;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ name: 'lastContactedAt', type: 'datetime', nullable: true })
   lastContactedAt?: Date;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ name: 'convertedAt', type: 'datetime', nullable: true })
   convertedAt?: Date;
 
-  @Column({ name: 'converted_customer_id', nullable: true })
-  convertedCustomerId?: string;
+  @Column({ name: 'converted_customer_id', type: 'bigint', nullable: true })
+  convertedCustomerId?: number;
 
-  @Column({ name: 'converted_contact_id', nullable: true })
-  convertedContactId?: string;
+  @Column({ name: 'converted_contact_id', type: 'bigint', nullable: true })
+  convertedContactId?: number;
 
-  @Column({ name: 'converted_opportunity_id', nullable: true })
-  convertedOpportunityId?: string;
+  @Column({ name: 'converted_opportunity_id', type: 'bigint', nullable: true })
+  convertedOpportunityId?: number;
 
   // 新增：行业、等级
   @Column({ nullable: true, comment: '客户行业（字典key）' })

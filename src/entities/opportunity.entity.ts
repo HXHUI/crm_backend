@@ -51,10 +51,10 @@ export class Opportunity extends BaseEntity {
   @Column({ type: 'decimal', precision: 5, scale: 2, default: 0, comment: '成功概率(%)' })
   probability: number;
 
-  @Column({ nullable: true, comment: '预计成交时间' })
+  @Column({ name: 'expected_close_date', nullable: true, comment: '预计成交时间' })
   expectedCloseDate?: Date;
 
-  @Column({ nullable: true, comment: '实际成交时间' })
+  @Column({ name: 'actual_close_date', nullable: true, comment: '实际成交时间' })
   actualCloseDate?: Date;
 
   @Column({ nullable: true, comment: '商机来源' })
@@ -70,15 +70,15 @@ export class Opportunity extends BaseEntity {
   notes?: Record<string, any>;
 
   // 关联关系
-  @Column({ comment: '客户ID' })
-  customerId: string;
+  @Column({ name: 'customer_id', type: 'bigint', comment: '客户ID' })
+  customerId: number;
 
   @ManyToOne(() => Customer, (customer) => customer.opportunities)
-  @JoinColumn({ name: 'customerId' })
+  @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 
-  @Column({ nullable: true, comment: '负责人ID' })
-  ownerId?: string;
+  @Column({ name: 'ownerId', type: 'bigint', nullable: true, comment: '负责人ID' })
+  ownerId?: number;
 
   @ManyToOne(() => Member)
   @JoinColumn({ name: 'ownerId' })
@@ -88,6 +88,6 @@ export class Opportunity extends BaseEntity {
   // activities?: Activity[];
 
   // 租户ID
-  @Column({ name: 'tenant_id', nullable: true, comment: '租户ID' })
-  tenantId?: string;
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
+  tenantId?: number;
 }

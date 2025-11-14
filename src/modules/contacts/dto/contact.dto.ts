@@ -56,10 +56,11 @@ export class CreateContactDto {
   @IsOptional()
   otherContacts?: Record<string, string>;
 
-  @ApiProperty({ description: '关联客户ID', example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef' })
-  @IsString({ message: '客户ID必须是字符串' })
+  @ApiProperty({ description: '关联客户ID', example: 1 })
+  @IsNumber({}, { message: '客户ID必须是数字' })
   @IsNotEmpty({ message: '请选择关联客户' })
-  customerId: string;
+  @Transform(({ value }) => typeof value === 'string' ? parseInt(value, 10) : value)
+  customerId: number;
 }
 
 export class UpdateContactDto {
@@ -138,9 +139,10 @@ export class QueryContactDto {
   type?: ContactType;
 
   @ApiProperty({ description: '关联客户ID', required: false })
-  @IsString()
+  @IsNumber({}, {})
   @IsOptional()
-  customerId?: string;
+  @Transform(({ value }) => value ? (typeof value === 'string' ? parseInt(value, 10) : value) : undefined)
+  customerId?: number;
 
   @ApiProperty({ description: '页码', example: 1, required: false })
   @IsOptional()

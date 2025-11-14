@@ -47,7 +47,7 @@ export class ContactsController {
   @Get('customer/:customerId')
   async getContactsByCustomer(@Param('customerId') customerId: string, @Request() req) {
     const tenantId = req.user.tenantId;
-    const contacts = await this.contactsService.getContactsByCustomer(customerId, tenantId);
+    const contacts = await this.contactsService.getContactsByCustomer(parseInt(customerId, 10), tenantId);
     
     return {
       code: 200,
@@ -59,7 +59,7 @@ export class ContactsController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
     const tenantId = req.user.tenantId;
-    const contact = await this.contactsService.findOne(id, tenantId);
+    const contact = await this.contactsService.findOne(parseInt(id, 10), tenantId);
     
     return {
       code: 200,
@@ -75,7 +75,7 @@ export class ContactsController {
     @Request() req
   ) {
     const tenantId = req.user.tenantId;
-    const contact = await this.contactsService.update(id, updateDto, tenantId);
+    const contact = await this.contactsService.update(parseInt(id, 10), updateDto, tenantId);
     
     return {
       code: 200,
@@ -87,7 +87,7 @@ export class ContactsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Request() req) {
     const tenantId = req.user.tenantId;
-    await this.contactsService.remove(id, tenantId);
+    await this.contactsService.remove(parseInt(id, 10), tenantId);
     
     return {
       code: 200,
@@ -98,7 +98,7 @@ export class ContactsController {
   @Delete('batch')
   async batchRemove(@Body() body: { ids: string[] }, @Request() req) {
     const tenantId = req.user.tenantId;
-    await this.contactsService.batchRemove(body.ids, tenantId);
+    await this.contactsService.batchRemove(body.ids.map(id => parseInt(id, 10)), tenantId);
     
     return {
       code: 200,

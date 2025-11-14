@@ -3,8 +3,8 @@ import { Tenant } from './tenant.entity';
 
 @Entity('customer_tags')
 export class CustomerTag {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ type: 'varchar', length: 100, comment: '标签名称' })
   name: string;
@@ -15,8 +15,8 @@ export class CustomerTag {
   @Column({ type: 'text', nullable: true, comment: '标签描述' })
   description: string;
 
-  @Column({ type: 'varchar', length: 36, name: 'tenant_id', comment: '租户ID' })
-  tenantId: string;
+  @Column({ type: 'bigint', name: 'tenant_id', comment: '租户ID' })
+  tenantId: number;
 
   @CreateDateColumn({ name: 'created_at', comment: '创建时间' })
   createdAt: Date;
