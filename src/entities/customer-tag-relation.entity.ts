@@ -4,21 +4,21 @@ import { CustomerTag } from './customer-tag.entity';
 
 @Entity('customer_tag_relations')
 export class CustomerTagRelation {
-  @PrimaryColumn({ type: 'varchar', length: 36, comment: '客户ID' })
-  customerId: string;
+  @PrimaryColumn({ name: 'customer_id', type: 'bigint', comment: '客户ID' })
+  customerId: number;
 
-  @PrimaryColumn({ type: 'varchar', length: 36, comment: '标签ID' })
-  tagId: string;
+  @PrimaryColumn({ name: 'tag_id', type: 'bigint', comment: '标签ID' })
+  tagId: number;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'created_at', comment: '创建时间' })
   createdAt: Date;
 
   // 关系
   @ManyToOne(() => Customer, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'customerId' })
+  @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 
   @ManyToOne(() => CustomerTag, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'tagId' })
+  @JoinColumn({ name: 'tag_id' })
   tag: CustomerTag;
 }

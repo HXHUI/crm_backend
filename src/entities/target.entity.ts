@@ -1,14 +1,15 @@
-import { Entity, Column, Index } from 'typeorm'
-import { BaseEntity } from './base.entity'
+import { Entity, Column, Index, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm'
 
 export type OwnerType = 'tenant' | 'department' | 'member'
 
 @Entity('target')
 @Index('idx_tenant_month', ['tenantId', 'targetMonth'])
 @Index('unique_target', ['tenantId', 'ownerType', 'ownerId', 'targetType', 'targetMonth'], { unique: true })
-export class Target extends BaseEntity {
-  @Column({ name: 'tenant_id', type: 'varchar', length: 36, nullable: false, comment: '租户ID' })
-  tenantId: string
+export class Target {
+  @PrimaryGeneratedColumn()
+  id: number
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: false, comment: '租户ID' })
+  tenantId: number
 
   // 目标基本信息
   @Column({ name: 'target_type', type: 'varchar', length: 50, nullable: false, comment: '目标类型' })
@@ -31,8 +32,8 @@ export class Target extends BaseEntity {
   @Column({ name: 'owner_type', type: 'enum', enum: ['tenant', 'department', 'member'], comment: '所有者类型' })
   ownerType: OwnerType
 
-  @Column({ name: 'owner_id', type: 'varchar', length: 36, comment: '所有者ID' })
-  ownerId: string
+  @Column({ name: 'owner_id', type: 'bigint', comment: '所有者ID' })
+  ownerId: number
 
   // 进度
   @Column({ name: 'completion_rate', type: 'decimal', precision: 5, scale: 2, default: 0, comment: '完成率' })
@@ -41,11 +42,20 @@ export class Target extends BaseEntity {
   @Column({ type: 'enum', enum: ['active', 'completed'], default: 'active' })
   status: 'active' | 'completed'
 
-  @Column({ name: 'created_by', type: 'varchar', length: 36 })
-  createdBy: string
+  @Column({ name: 'created_by', type: 'bigint' })
+  createdBy: number
 
-  @Column({ name: 'updated_by', type: 'varchar', length: 36, nullable: true })
-  updatedBy?: string
+  @Column({ name: 'updated_by', type: 'bigint', nullable: true })
+  updatedBy?: number
+
+  @CreateDateColumn({ name: 'createdAt', type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date
+
+  @UpdateDateColumn({ name: 'updatedAt', type: 'datetime', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  updatedAt: Date
+
+  @DeleteDateColumn({ name: 'deletedAt', type: 'datetime', nullable: true })
+  deletedAt?: Date
 }
 
 

@@ -38,7 +38,7 @@ export class TenantController {
   // GET /tenants/:id - 获取特定租户详情
   @Get(':id')
   async getTenant(@Param('id') id: string) {
-    const result = await this.tenantService.getTenantById(id);
+    const result = await this.tenantService.getTenantById(parseInt(id, 10));
     return {
       code: 200,
       message: '获取租户详情成功',
@@ -53,7 +53,8 @@ export class TenantController {
     @Body() createTenantDto: CreateTenantDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.tenantService.createTenant(createTenantDto, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const result = await this.tenantService.createTenant(createTenantDto, userId);
     return {
       code: 201,
       message: '创建租户成功',
@@ -68,7 +69,8 @@ export class TenantController {
     @Body() updateTenantDto: UpdateTenantDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.tenantService.updateTenant(id, updateTenantDto, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const result = await this.tenantService.updateTenant(parseInt(id, 10), updateTenantDto, userId);
     return {
       code: 200,
       message: '更新租户成功',
@@ -83,7 +85,8 @@ export class TenantController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ) {
-    await this.tenantService.deleteTenant(id, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    await this.tenantService.deleteTenant(parseInt(id, 10), userId);
     return {
       code: 204,
       message: '删除租户成功'
@@ -98,7 +101,7 @@ export class TenantController {
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
   ) {
-    const result = await this.tenantService.getTenantMembers(id, page, limit, search);
+    const result = await this.tenantService.getTenantMembers(parseInt(id, 10), page, limit, search);
     return {
       code: 200,
       message: '获取租户成员列表成功',
@@ -114,7 +117,8 @@ export class TenantController {
     @Body() body: { userId: string; role?: string },
     @CurrentUser() user: any,
   ) {
-    const result = await this.tenantService.addTenantMember(id, body.userId, body.role, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const result = await this.tenantService.addTenantMember(parseInt(id, 10), parseInt(body.userId, 10), body.role, userId);
     return {
       code: 201,
       message: '添加租户成员成功',
@@ -130,7 +134,8 @@ export class TenantController {
     @Param('memberId') memberId: string,
     @CurrentUser() user: any,
   ) {
-    await this.tenantService.removeTenantMember(id, memberId, user.userId);
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    await this.tenantService.removeTenantMember(parseInt(id, 10), parseInt(memberId, 10), userId);
     return {
       code: 204,
       message: '移除租户成员成功'

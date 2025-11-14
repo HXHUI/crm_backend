@@ -51,7 +51,7 @@ export class CustomersController {
 
   @Get(':id')
   async findCustomerById(@Param('id') id: string, @CurrentUser() user: any) {
-    const customer = await this.customersService.findCustomerById(id, user.memberId, user.tenantId);
+    const customer = await this.customersService.findCustomerById(parseInt(id, 10), user.memberId, user.tenantId);
     return {
       code: 200,
       message: '获取客户详情成功',
@@ -65,7 +65,7 @@ export class CustomersController {
     @Body() updateCustomerDto: UpdateCustomerDto,
     @CurrentUser() user: any,
   ) {
-    const customer = await this.customersService.updateCustomer(id, updateCustomerDto, user.memberId, user.tenantId);
+    const customer = await this.customersService.updateCustomer(parseInt(id, 10), updateCustomerDto, user.memberId, user.tenantId);
     return {
       code: 200,
       message: '更新客户成功',
@@ -76,7 +76,7 @@ export class CustomersController {
   @Delete('batch')
   @HttpCode(HttpStatus.OK)
   async deleteBatchCustomers(@Body('ids') ids: string[], @CurrentUser() user: any) {
-    await this.customersService.deleteBatchCustomers(ids, user.memberId, user.tenantId);
+    await this.customersService.deleteBatchCustomers(ids.map(id => parseInt(id, 10)), user.memberId, user.tenantId);
     return {
       code: 200,
       message: '批量删除客户成功'
@@ -86,7 +86,7 @@ export class CustomersController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async deleteCustomer(@Param('id') id: string, @CurrentUser() user: any) {
-    await this.customersService.deleteCustomer(id, user.memberId, user.tenantId);
+    await this.customersService.deleteCustomer(parseInt(id, 10), user.memberId, user.tenantId);
     return {
       code: 200,
       message: '删除客户成功'
@@ -97,7 +97,7 @@ export class CustomersController {
   @Post(':id/claim')
   @HttpCode(HttpStatus.OK)
   async claimCustomer(@Param('id') id: string, @CurrentUser() user: any) {
-    await this.customersService.claimCustomer(id, user.memberId, user.tenantId);
+    await this.customersService.claimCustomer(parseInt(id, 10), user.memberId, user.tenantId);
     return {
       code: 200,
       message: '认领客户成功'
@@ -108,7 +108,7 @@ export class CustomersController {
   @Post(':id/release')
   @HttpCode(HttpStatus.OK)
   async releaseCustomer(@Param('id') id: string, @CurrentUser() user: any) {
-    await this.customersService.releaseCustomer(id, user.memberId, user.tenantId);
+    await this.customersService.releaseCustomer(parseInt(id, 10), user.memberId, user.tenantId);
     return {
       code: 200,
       message: '回收客户成功'
@@ -132,7 +132,7 @@ export class CustomersController {
     @Body() createContactDto: CreateContactDto,
     @CurrentUser() user: any,
   ) {
-    return await this.customersService.createContact(customerId, createContactDto, user.memberId, user.tenantId);
+    return await this.customersService.createContact(parseInt(customerId, 10), createContactDto, user.memberId, user.tenantId);
   }
 
   @Patch('contacts/:contactId')
@@ -141,11 +141,11 @@ export class CustomersController {
     @Body() updateContactDto: Partial<CreateContactDto>,
     @CurrentUser() user: any,
   ) {
-    return await this.customersService.updateContact(contactId, updateContactDto, user.memberId, user.tenantId);
+    return await this.customersService.updateContact(parseInt(contactId, 10), updateContactDto, user.memberId, user.tenantId);
   }
 
   @Delete('contacts/:contactId')
   async deleteContact(@Param('contactId') contactId: string, @CurrentUser() user: any) {
-    return await this.customersService.deleteContact(contactId, user.memberId, user.tenantId);
+    return await this.customersService.deleteContact(parseInt(contactId, 10), user.memberId, user.tenantId);
   }
 }

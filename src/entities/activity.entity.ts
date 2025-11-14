@@ -57,16 +57,16 @@ export class Activity extends BaseEntity {
   })
   status: ActivityStatus;
 
-  @Column({ type: 'datetime', comment: '计划开始时间' })
+  @Column({ name: 'planned_start_time', type: 'datetime', comment: '计划开始时间' })
   plannedStartTime: Date;
 
-  @Column({ type: 'datetime', comment: '计划结束时间' })
+  @Column({ name: 'planned_end_time', type: 'datetime', comment: '计划结束时间' })
   plannedEndTime: Date;
 
-  @Column({ type: 'datetime', nullable: true, comment: '实际开始时间' })
+  @Column({ name: 'actual_start_time', type: 'datetime', nullable: true, comment: '实际开始时间' })
   actualStartTime?: Date;
 
-  @Column({ type: 'datetime', nullable: true, comment: '实际结束时间' })
+  @Column({ name: 'actual_end_time', type: 'datetime', nullable: true, comment: '实际结束时间' })
   actualEndTime?: Date;
 
   @Column({ nullable: true, comment: '活动地点' })
@@ -83,24 +83,25 @@ export class Activity extends BaseEntity {
 
   // 统一关联：线索/联系人/商机/客户
   @Column({
+    name: 'relatedToType',
     type: 'enum',
     enum: RelatedToType,
     comment: '关联主体类型',
   })
   relatedToType: RelatedToType;
 
-  @Column({ comment: '关联主体ID' })
-  relatedToId: string;
+  @Column({ name: 'relatedToId', type: 'bigint', comment: '关联主体ID' })
+  relatedToId: number;
 
   // 分配人（指派者）
-  @Column({ nullable: true, comment: '分配人(成员ID)' })
-  assignedBy?: string;
+  @Column({ name: 'assignedBy', type: 'bigint', nullable: true, comment: '分配人(成员ID)' })
+  assignedBy?: number;
 
-  @Column({ comment: '负责人ID' })
-  ownerId: string;
+  @Column({ name: 'owner_id', type: 'bigint', comment: '负责人ID' })
+  ownerId: number;
 
   @ManyToOne(() => Member)
-  @JoinColumn({ name: 'ownerId' })
+  @JoinColumn({ name: 'owner_id' })
   owner: Member;
 
   @Column({
@@ -115,6 +116,6 @@ export class Activity extends BaseEntity {
   content?: string;
 
   // 租户ID
-  @Column({ name: 'tenant_id', nullable: true, comment: '租户ID' })
-  tenantId?: string;
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
+  tenantId?: number;
 }

@@ -28,19 +28,156 @@ export class MigrationService {
 
   /**
    * 初始化迁移表
+   * 注意：migrations 表的结构定义在 scripts/init-db.sql 中
+   * 此方法仅作为备用方案，确保表存在（如果未运行 SQL 脚本）
    */
   async initMigrationsTable(): Promise<void> {
     try {
-      await this.dataSource.query(`
-        CREATE TABLE IF NOT EXISTS migrations (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          version VARCHAR(255) NOT NULL UNIQUE,
-          name VARCHAR(255) NOT NULL,
-          executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      // 检查表是否存在
+      const tables = await this.dataSource.query(`
+        SELECT TABLE_NAME 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'migrations'
       `);
-      this.logger.log('迁移表初始化完成');
+
+      if (!Array.isArray(tables) || tables.length === 0) {
+        // 表不存在，创建新表（结构与 init-db.sql 中保持一致）
+        this.logger.warn('migrations 表不存在，正在创建（建议使用 scripts/init-db.sql 初始化数据库）');
+        await this.dataSource.query(`
+          CREATE TABLE migrations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            version VARCHAR(255) NOT NULL UNIQUE COMMENT '迁移版本号',
+            name VARCHAR(255) NOT NULL COMMENT '迁移名称',
+            executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '执行时间',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+            INDEX idx_version (version),
+            INDEX idx_executed_at (executed_at)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+        this.logger.log('迁移表创建完成');
+      } else {
+        // 表已存在，检查是否有 version 字段（兼容旧结构）
+        const existingColumns = await this.dataSource.query(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'migrations'
+        `);
+        
+        const columnNames = Array.isArray(existingColumns) 
+          ? existingColumns.map((col: any) => col.COLUMN_NAME)
+          : [];
+        
+        // 如果缺少 version 字段，说明是旧的 TypeORM 结构，需要升级
+        if (!columnNames.includes('version')) {
+          this.logger.warn('检测到旧的 migrations 表结构，正在升级...');
+          
+          // 添加 version 字段
+          await this.dataSource.query(`
+            ALTER TABLE migrations 
+            ADD COLUMN version VARCHAR(255) NULL
+          `);
+          
+          // 如果有 timestamp 字段，使用它作为 version
+          if (columnNames.includes('timestamp')) {
+            await this.dataSource.query(`
+              UPDATE migrations 
+              SET version = CAST(timestamp AS CHAR) 
+              WHERE version IS NULL
+            `);
+          } else {
+            // 否则使用 id 生成唯一 version
+            await this.dataSource.query(`
+              UPDATE migrations 
+              SET version = CONCAT('mig_', LPAD(id, 10, '0')) 
+              WHERE version IS NULL
+            `);
+          }
+          
+          // 修改为 NOT NULL 并添加唯一索引
+          await this.dataSource.query(`
+            ALTER TABLE migrations 
+            MODIFY COLUMN version VARCHAR(255) NOT NULL,
+            ADD UNIQUE KEY idx_version (version)
+          `);
+          
+          // 添加其他缺失字段
+          if (!columnNames.includes('executed_at')) {
+            await this.dataSource.query(`
+              ALTER TABLE migrations 
+              ADD COLUMN executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '执行时间'
+            `);
+            if (columnNames.includes('timestamp')) {
+              await this.dataSource.query(`
+                UPDATE migrations 
+                SET executed_at = FROM_UNIXTIME(timestamp / 1000) 
+                WHERE executed_at IS NULL AND timestamp IS NOT NULL
+              `);
+            }
+          }
+          
+          if (!columnNames.includes('created_at')) {
+            await this.dataSource.query(`
+              ALTER TABLE migrations 
+              ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+            `);
+          }
+          
+          // 处理旧的 timestamp 字段：添加默认值或删除（推荐删除，因为已有 executed_at）
+          if (columnNames.includes('timestamp')) {
+            // 先检查 timestamp 字段是否有默认值
+            const [timestampCol] = await this.dataSource.query(`
+              SELECT COLUMN_DEFAULT, IS_NULLABLE
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'migrations' 
+              AND COLUMN_NAME = 'timestamp'
+            `);
+            
+            if (Array.isArray(timestampCol) && timestampCol.length > 0) {
+              const colInfo = timestampCol[0];
+              // 如果没有默认值且不允许 NULL，添加默认值
+              if (!colInfo.COLUMN_DEFAULT && colInfo.IS_NULLABLE === 'NO') {
+                this.logger.log('为 timestamp 字段添加默认值...');
+                // MySQL 不支持表达式作为默认值，使用当前时间戳（毫秒）
+                const currentTimestamp = Date.now();
+                await this.dataSource.query(`
+                  ALTER TABLE migrations 
+                  MODIFY COLUMN timestamp BIGINT DEFAULT ${currentTimestamp}
+                `);
+              }
+            }
+          }
+          
+          this.logger.log('迁移表结构升级完成');
+        } else {
+          // 表结构已有 version 字段，但可能仍有旧的 timestamp 字段需要处理
+          if (columnNames.includes('timestamp')) {
+            const [timestampCol] = await this.dataSource.query(`
+              SELECT COLUMN_DEFAULT, IS_NULLABLE
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'migrations' 
+              AND COLUMN_NAME = 'timestamp'
+            `);
+            
+            if (Array.isArray(timestampCol) && timestampCol.length > 0) {
+              const colInfo = timestampCol[0];
+              // 如果没有默认值且不允许 NULL，添加默认值
+              if (!colInfo.COLUMN_DEFAULT && colInfo.IS_NULLABLE === 'NO') {
+                this.logger.log('为 timestamp 字段添加默认值...');
+                const currentTimestamp = Date.now();
+                await this.dataSource.query(`
+                  ALTER TABLE migrations 
+                  MODIFY COLUMN timestamp BIGINT DEFAULT ${currentTimestamp}
+                `);
+              }
+            }
+          }
+          this.logger.log('迁移表结构正常');
+        }
+      }
     } catch (error) {
       this.logger.error('迁移表初始化失败:', error);
       throw error;
@@ -83,17 +220,34 @@ export class MigrationService {
       }
       filesMerged.sort((a,b)=> a.file.localeCompare(b.file));
 
+      // 使用 Map 来去重相同版本号的迁移（保留最新的文件名）
+      const versionMap = new Map<string, { version: string; name: string; file: string; full: string }>();
+      
       for (const item of filesMerged) {
         const file = item.file;
-          const version = file.split('-')[0];
-          const base = file.replace(/\.(sql|ts|js)$/i, '');
-          const name = base.substring(version.length + 1);
-          
-          migrations.push({
-            version,
-            name,
-            executed: executedVersions.includes(version),
-          });
+        const version = file.split('-')[0];
+        const base = file.replace(/\.(sql|ts|js)$/i, '');
+        const name = base.substring(version.length + 1);
+        
+        // 如果版本号已存在，比较文件名，保留更新的（按字母顺序，fixed 版本通常更靠后）
+        if (versionMap.has(version)) {
+          const existing = versionMap.get(version)!;
+          if (file.localeCompare(existing.file) > 0) {
+            // 当前文件更新，替换
+            versionMap.set(version, { version, name, file, full: item.full });
+          }
+        } else {
+          versionMap.set(version, { version, name, file, full: item.full });
+        }
+      }
+
+      // 将去重后的迁移添加到列表
+      for (const { version, name, executed } of Array.from(versionMap.values()).map(item => ({
+        version: item.version,
+        name: item.name,
+        executed: executedVersions.includes(item.version),
+      }))) {
+        migrations.push({ version, name, executed });
       }
 
       return migrations;
@@ -178,10 +332,43 @@ export class MigrationService {
       }
       
       // 记录迁移执行
-      await this.dataSource.query(
-        'INSERT INTO migrations (version, name) VALUES (?, ?)',
-        [migration.version, migration.name]
+      // 先检查该版本是否已存在，避免重复插入
+      const existing = await this.dataSource.query(
+        'SELECT version FROM migrations WHERE version = ?',
+        [migration.version]
       );
+      
+      if (Array.isArray(existing) && existing.length > 0) {
+        this.logger.warn(`迁移 ${migration.version} 已存在，跳过记录插入`);
+        return;
+      }
+      
+      // 检查表结构，兼容旧的 timestamp 字段
+      const columns = await this.dataSource.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'migrations'
+      `);
+      
+      const columnNames = Array.isArray(columns) 
+        ? columns.map((col: any) => col.COLUMN_NAME)
+        : [];
+      
+      if (columnNames.includes('timestamp')) {
+        // 旧结构：需要提供 timestamp 字段
+        const timestamp = Date.now();
+        await this.dataSource.query(
+          'INSERT INTO migrations (version, name, timestamp) VALUES (?, ?, ?)',
+          [migration.version, migration.name, timestamp]
+        );
+      } else {
+        // 新结构：只需要 version 和 name
+        await this.dataSource.query(
+          'INSERT INTO migrations (version, name) VALUES (?, ?)',
+          [migration.version, migration.name]
+        );
+      }
 
       this.logger.log(`迁移执行完成: ${migration.version} - ${migration.name}`);
     } catch (error) {

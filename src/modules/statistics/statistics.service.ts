@@ -94,7 +94,7 @@ export interface CustomerMapData {
 }
 
 export interface RankingItem {
-  memberId: string;
+  memberId: number;
   memberName: string;
   position?: string;
   value: number;
@@ -122,7 +122,7 @@ export class StatisticsService {
     private memberRepository: Repository<Member>,
   ) {}
 
-  async getSalesBrief(tenantId: string, period: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<SalesBriefData> {
+  async getSalesBrief(tenantId: number, period: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<SalesBriefData> {
     const { currentStart, currentEnd, previousStart, previousEnd } = this.getPeriodDates(period);
 
     // 并行查询所有数据
@@ -312,7 +312,7 @@ export class StatisticsService {
     return { currentStart, currentEnd, previousStart, previousEnd };
   }
 
-  async getDataSummary(tenantId: string, period: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<DataSummaryData> {
+  async getDataSummary(tenantId: number, period: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<DataSummaryData> {
     const { currentStart, currentEnd } = this.getPeriodDates(period);
 
     // 并行查询所有数据
@@ -402,7 +402,7 @@ export class StatisticsService {
     };
   }
 
-  async getCustomerReminders(tenantId: string, memberId?: string): Promise<CustomerReminderData> {
+  async getCustomerReminders(tenantId: number, memberId?: number): Promise<CustomerReminderData> {
     const now = new Date();
     
     // 计算各个时间节点
@@ -477,7 +477,7 @@ export class StatisticsService {
   }
 
   // 获取在指定时间后没有活动的客户数量
-  private async getCustomersWithoutRecentActivity(customerIds: string[], cutoffDate: Date, tenantId: string): Promise<number> {
+  private async getCustomersWithoutRecentActivity(customerIds: number[], cutoffDate: Date, tenantId: number): Promise<number> {
     if (customerIds.length === 0) return 0;
 
     // 查询在指定时间后有活动的客户
@@ -498,7 +498,7 @@ export class StatisticsService {
   }
 
   // 获取逾期未联系的客户数量
-  private async getOverdueCustomers(customerIds: string[], now: Date, tenantId: string): Promise<number> {
+  private async getOverdueCustomers(customerIds: number[], now: Date, tenantId: number): Promise<number> {
     if (customerIds.length === 0) return 0;
 
     // 查询有计划联系时间且已过期的客户
@@ -517,7 +517,7 @@ export class StatisticsService {
     return overdueCustomers.length;
   }
 
-  async getSalesFunnel(tenantId: string, memberId?: string): Promise<SalesFunnelData> {
+  async getSalesFunnel(tenantId: number, memberId?: number): Promise<SalesFunnelData> {
     // 构建基础查询条件 - 基于商机而不是客户
     const baseQuery = this.opportunityRepository
       .createQueryBuilder('opportunity')
@@ -612,7 +612,7 @@ export class StatisticsService {
     return { count, amount };
   }
 
-  async getCustomerSourceDistribution(tenantId: string, memberId?: string): Promise<CustomerSourceDistributionData[]> {
+  async getCustomerSourceDistribution(tenantId: number, memberId?: number): Promise<CustomerSourceDistributionData[]> {
     // 构建基础查询条件
     const baseQuery = this.customerRepository
       .createQueryBuilder('customer')
@@ -653,7 +653,7 @@ export class StatisticsService {
   /**
    * 获取客户地图数据
    */
-  async getCustomerMapData(tenantId: string, memberId?: string): Promise<CustomerMapData[]> {
+  async getCustomerMapData(tenantId: number, memberId?: number): Promise<CustomerMapData[]> {
     const baseQuery = this.customerRepository
       .createQueryBuilder('customer')
       .where('customer.tenantId = :tenantId', { tenantId })
@@ -687,8 +687,8 @@ export class StatisticsService {
    * 获取排行榜数据
    */
   async getRankingList(
-    tenantId: string,
-    memberId: string,
+    tenantId: number,
+    memberId: number,
     scope: 'me' | 'all',
     period: 'week' | 'month' | 'quarter' | 'year',
     metric: 'newCustomers' | 'newContacts' | 'newActivities' | 'paymentAmount' | 'contractAmount' | 'contractCount'
@@ -776,7 +776,7 @@ export class StatisticsService {
     };
   }
 
-  private async getNewCustomersRanking(tenantId: string, memberIds: string[], startDate: Date): Promise<RankingItem[]> {
+  private async getNewCustomersRanking(tenantId: number, memberIds: number[], startDate: Date): Promise<RankingItem[]> {
     const result = await this.customerRepository
       .createQueryBuilder('customer')
       .select('customer.ownerId', 'memberId')
@@ -796,7 +796,7 @@ export class StatisticsService {
     }));
   }
 
-  private async getNewContactsRanking(tenantId: string, memberIds: string[], startDate: Date): Promise<RankingItem[]> {
+  private async getNewContactsRanking(tenantId: number, memberIds: number[], startDate: Date): Promise<RankingItem[]> {
     const result = await this.contactRepository
       .createQueryBuilder('contact')
       .leftJoin('contact.customer', 'customer')
@@ -817,7 +817,7 @@ export class StatisticsService {
     }));
   }
 
-  private async getNewActivitiesRanking(tenantId: string, memberIds: string[], startDate: Date): Promise<RankingItem[]> {
+  private async getNewActivitiesRanking(tenantId: number, memberIds: number[], startDate: Date): Promise<RankingItem[]> {
     const result = await this.activityRepository
       .createQueryBuilder('activity')
       .select('activity.ownerId', 'memberId')
@@ -837,19 +837,19 @@ export class StatisticsService {
     }));
   }
 
-  private async getPaymentAmountRanking(tenantId: string, memberIds: string[], startDate: Date): Promise<RankingItem[]> {
+  private async getPaymentAmountRanking(tenantId: number, memberIds: number[], startDate: Date): Promise<RankingItem[]> {
     // 这里需要根据实际的回款表结构来实现
     // 暂时返回空数组，需要根据业务需求实现
     return [];
   }
 
-  private async getContractAmountRanking(tenantId: string, memberIds: string[], startDate: Date): Promise<RankingItem[]> {
+  private async getContractAmountRanking(tenantId: number, memberIds: number[], startDate: Date): Promise<RankingItem[]> {
     // 这里需要根据实际的合同表结构来实现
     // 暂时返回空数组，需要根据业务需求实现
     return [];
   }
 
-  private async getContractCountRanking(tenantId: string, memberIds: string[], startDate: Date): Promise<RankingItem[]> {
+  private async getContractCountRanking(tenantId: number, memberIds: number[], startDate: Date): Promise<RankingItem[]> {
     // 这里需要根据实际的合同表结构来实现
     // 暂时返回空数组，需要根据业务需求实现
     return [];

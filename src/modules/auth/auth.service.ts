@@ -11,7 +11,7 @@ import { RedisService } from '../../common/redis/redis.service';
 export interface LoginDto {
   username: string;
   password: string;
-  tenantId?: string;
+  tenantId?: string | number;
 }
 
 export interface RegisterDto {
@@ -40,7 +40,7 @@ export class AuthService {
     private readonly redisService: RedisService,
   ) {}
 
-  async validateUser(username: string, password: string, tenantId?: string): Promise<any> {
+  async validateUser(username: string, password: string, tenantId?: string | number): Promise<any> {
     // 支持用户名或手机号码登录
     const user = await this.userRepository
       .createQueryBuilder('user')
@@ -64,8 +64,9 @@ export class AuthService {
 
     // 如果指定了租户，检查用户是否属于该租户
     if (tenantId) {
+      const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
       const tenant = user.members?.find(
-        (member) => member.tenantId === tenantId && member.status === 'active',
+        (member) => member.tenantId === tenantIdNum && member.status === 'active',
       );
       if (!tenant) {
         throw new UnauthorizedException('用户不属于该租户');
@@ -114,7 +115,7 @@ export class AuthService {
 
     // 获取成员和租户信息
     const member = await this.memberRepository.findOne({
-      where: { userId: userData.userId },
+      where: { userId: userData.userId as number },
       relations: ['tenant']
     });
 
@@ -268,14 +269,15 @@ export class AuthService {
     return slug;
   }
 
-  async createTenant(createTenantDto: CreateTenantDto, ownerId: string) {
+  async createTenant(createTenantDto: CreateTenantDto, ownerId: string | number) {
     const { name, description } = createTenantDto;
+    const ownerIdNum = typeof ownerId === 'string' ? parseInt(ownerId, 10) : ownerId;
 
     // 创建租户（无slug）
     const tenant = this.tenantRepository.create({
       name,
       description,
-      ownerId,
+      ownerId: ownerIdNum,
       status: TenantStatus.ACTIVE,
     });
 
@@ -283,7 +285,7 @@ export class AuthService {
 
     // 创建租户所有者成员记录
     const member = this.memberRepository.create({
-      userId: ownerId,
+      userId: ownerIdNum,
       tenantId: savedTenant.id,
       status: MemberStatus.ACTIVE,
     });
@@ -293,7 +295,7 @@ export class AuthService {
     return savedTenant;
   }
 
-  async logout(userId: string) {
+  async logout(userId: string | number) {
     // 从Redis中删除token（如果Redis可用）
     try {
       await this.redisService.del(`token:${userId}`);
@@ -304,9 +306,10 @@ export class AuthService {
     return { message: '退出成功' };
   }
 
-  async refreshToken(userId: string) {
+  async refreshToken(userId: string | number) {
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     const user = await this.userRepository.findOne({
-      where: { id: userId },
+      where: { id: userIdNum },
       relations: ['members', 'members.tenant'],
     });
 
@@ -334,9 +337,10 @@ export class AuthService {
     };
   }
 
-  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+  async changePassword(userId: string | number, oldPassword: string, newPassword: string) {
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     const user = await this.userRepository.findOne({
-      where: { id: userId },
+      where: { id: userIdNum },
     });
 
     if (!user) {
@@ -351,7 +355,7 @@ export class AuthService {
     const saltRounds = 10;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
-    await this.userRepository.update(userId, {
+    await this.userRepository.update(userIdNum, {
       passwordHash: newPasswordHash,
     });
 
@@ -368,9 +372,10 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(userId: string) {
+  async getCurrentUser(userId: string | number) {
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     const user = await this.userRepository.findOne({
-      where: { id: userId },
+      where: { id: userIdNum },
       relations: ['members', 'members.tenant'],
     });
 

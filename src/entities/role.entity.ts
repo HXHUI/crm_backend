@@ -12,15 +12,15 @@ export class Role extends BaseEntity {
   @Column({ nullable: true, comment: '角色描述' })
   description?: string;
 
-  @Column({ type: 'boolean', default: true, comment: '是否启用' })
+  @Column({ name: 'is_active', type: 'boolean', default: true, comment: '是否启用' })
   isActive: boolean;
 
   // 关联关系
-  @Column({ comment: '租户ID' })
-  tenantId: string;
+  @Column({ name: 'tenant_id', type: 'bigint', comment: '租户ID' })
+  tenantId: number;
 
   @ManyToOne(() => Tenant)
-  @JoinColumn({ name: 'tenantId' })
+  @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 
   @OneToMany(() => MemberRole, (memberRole) => memberRole.role)

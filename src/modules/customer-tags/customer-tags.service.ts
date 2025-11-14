@@ -11,7 +11,7 @@ export class CustomerTagsService {
     private customerTagRepository: Repository<CustomerTag>,
   ) {}
 
-  async create(createDto: CreateCustomerTagDto, tenantId: string): Promise<CustomerTag> {
+  async create(createDto: CreateCustomerTagDto, tenantId: number): Promise<CustomerTag> {
     // 检查标签名称是否已存在
     const existingTag = await this.customerTagRepository.findOne({
       where: { name: createDto.name, tenantId, deletedAt: null }
@@ -29,7 +29,7 @@ export class CustomerTagsService {
     return await this.customerTagRepository.save(tag);
   }
 
-  async findAll(queryDto: QueryCustomerTagDto, tenantId: string) {
+  async findAll(queryDto: QueryCustomerTagDto, tenantId: number) {
     try {
       const { name, color, page = 1, limit = 10 } = queryDto;
       const skip = (page - 1) * limit;
@@ -66,7 +66,7 @@ export class CustomerTagsService {
     }
   }
 
-  async findOne(id: string, tenantId: string): Promise<CustomerTag> {
+  async findOne(id: number, tenantId: number): Promise<CustomerTag> {
     const tag = await this.customerTagRepository.findOne({
       where: { id, tenantId, deletedAt: null }
     });
@@ -78,7 +78,7 @@ export class CustomerTagsService {
     return tag;
   }
 
-  async update(id: string, updateDto: UpdateCustomerTagDto, tenantId: string): Promise<CustomerTag> {
+  async update(id: number, updateDto: UpdateCustomerTagDto, tenantId: number): Promise<CustomerTag> {
     const tag = await this.findOne(id, tenantId);
 
     // 如果更新名称，检查是否与其他标签重名
@@ -96,14 +96,14 @@ export class CustomerTagsService {
     return await this.customerTagRepository.save(tag);
   }
 
-  async remove(id: string, tenantId: string): Promise<void> {
+  async remove(id: number, tenantId: number): Promise<void> {
     const tag = await this.findOne(id, tenantId);
     
     // 软删除
     await this.customerTagRepository.softDelete(id);
   }
 
-  async batchRemove(ids: string[], tenantId: string): Promise<void> {
+  async batchRemove(ids: number[], tenantId: number): Promise<void> {
     // 检查所有标签是否存在
     const tags = await this.customerTagRepository
       .createQueryBuilder('tag')
@@ -120,7 +120,7 @@ export class CustomerTagsService {
     await this.customerTagRepository.softDelete(ids);
   }
 
-  async getTagStats(tenantId: string) {
+  async getTagStats(tenantId: number) {
     const total = await this.customerTagRepository.count({
       where: { tenantId, deletedAt: null }
     });

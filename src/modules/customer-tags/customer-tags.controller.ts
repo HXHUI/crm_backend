@@ -47,7 +47,7 @@ export class CustomerTagsController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
     const tenantId = req.user.tenantId;
-    const tag = await this.customerTagsService.findOne(id, tenantId);
+    const tag = await this.customerTagsService.findOne(parseInt(id, 10), tenantId);
     
     return {
       code: 200,
@@ -63,7 +63,7 @@ export class CustomerTagsController {
     @Request() req
   ) {
     const tenantId = req.user.tenantId;
-    const tag = await this.customerTagsService.update(id, updateDto, tenantId);
+    const tag = await this.customerTagsService.update(parseInt(id, 10), updateDto, tenantId);
     
     return {
       code: 200,
@@ -75,7 +75,7 @@ export class CustomerTagsController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Request() req) {
     const tenantId = req.user.tenantId;
-    await this.customerTagsService.remove(id, tenantId);
+    await this.customerTagsService.remove(parseInt(id, 10), tenantId);
     
     return {
       code: 200,
@@ -86,7 +86,7 @@ export class CustomerTagsController {
   @Delete('batch')
   async batchRemove(@Body() body: { ids: string[] }, @Request() req) {
     const tenantId = req.user.tenantId;
-    await this.customerTagsService.batchRemove(body.ids, tenantId);
+    await this.customerTagsService.batchRemove(body.ids.map(id => parseInt(id, 10)), tenantId);
     
     return {
       code: 200,

@@ -21,42 +21,42 @@ export class TenantSubscription extends BaseEntity {
   })
   status: SubscriptionStatus;
 
-  @Column({ type: 'datetime', comment: '开始时间' })
+  @Column({ name: 'start_date', type: 'datetime', comment: '开始时间' })
   startDate: Date;
 
-  @Column({ type: 'datetime', comment: '结束时间' })
+  @Column({ name: 'end_date', type: 'datetime', comment: '结束时间' })
   endDate: Date;
 
-  @Column({ type: 'datetime', nullable: true, comment: '试用结束时间' })
+  @Column({ name: 'trial_end_date', type: 'datetime', nullable: true, comment: '试用结束时间' })
   trialEndDate?: Date;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, comment: '订阅价格' })
   price: number;
 
-  @Column({ type: 'boolean', default: true, comment: '自动续费' })
+  @Column({ name: 'auto_renew', type: 'boolean', default: true, comment: '自动续费' })
   autoRenew: boolean;
 
-  @Column({ nullable: true, comment: '支付方式' })
+  @Column({ name: 'payment_method', nullable: true, comment: '支付方式' })
   paymentMethod?: string;
 
-  @Column({ nullable: true, comment: '支付ID' })
+  @Column({ name: 'payment_id', nullable: true, comment: '支付ID' })
   paymentId?: string;
 
   @Column({ type: 'json', nullable: true, comment: '订阅配置' })
   config?: Record<string, any>;
 
   // 关联关系
-  @Column({ comment: '租户ID' })
-  tenantId: string;
+  @Column({ name: 'tenant_id', type: 'bigint', comment: '租户ID' })
+  tenantId: number;
 
   @ManyToOne(() => Tenant, (tenant) => tenant.subscriptions)
-  @JoinColumn({ name: 'tenantId' })
+  @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 
-  @Column({ comment: '套餐ID' })
-  planId: string;
+  @Column({ name: 'plan_id', type: 'bigint', comment: '套餐ID' })
+  planId: number;
 
   @ManyToOne(() => SubscriptionPlan, (plan) => plan.subscriptions)
-  @JoinColumn({ name: 'planId' })
+  @JoinColumn({ name: 'plan_id' })
   plan: SubscriptionPlan;
 }

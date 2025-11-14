@@ -4,19 +4,19 @@ import { Department } from './department.entity';
 
 @Entity('member_departments')
 export class MemberDepartment {
-  @PrimaryColumn({ comment: '成员ID' })
-  memberId: string;
+  @PrimaryColumn({ type: 'bigint', comment: '成员ID' })
+  memberId: number;
 
-  @PrimaryColumn({ comment: '部门ID' })
-  departmentId: string;
+  @PrimaryColumn({ type: 'bigint', comment: '部门ID' })
+  departmentId: number;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'created_at', comment: '创建时间' })
   createdAt: Date;
 
-  @UpdateDateColumn({ comment: '更新时间' })
+  @UpdateDateColumn({ name: 'updated_at', comment: '更新时间' })
   updatedAt: Date;
 
-  @DeleteDateColumn({ comment: '删除时间' })
+  @DeleteDateColumn({ name: 'deleted_at', comment: '删除时间' })
   deletedAt?: Date;
 
   // 关联关系

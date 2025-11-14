@@ -27,13 +27,13 @@ export class Permission extends BaseEntity {
   })
   type: PermissionType;
 
-  @Column({ nullable: true, comment: '父权限ID' })
-  parentId?: string;
+  @Column({ name: 'parent_id', type: 'bigint', nullable: true, comment: '父权限ID' })
+  parentId?: number;
 
   @Column({ type: 'int', default: 0, comment: '排序' })
   sort: number;
 
-  @Column({ type: 'boolean', default: true, comment: '是否启用' })
+  @Column({ name: 'is_active', type: 'boolean', default: true, comment: '是否启用' })
   isActive: boolean;
 
   // 关联关系

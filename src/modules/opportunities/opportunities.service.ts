@@ -13,7 +13,7 @@ export interface CreateOpportunityDto {
   stage?: 'lead' | 'qualification' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost';
   probability?: number;
   expectedCloseDate: string;
-  customerId: string;
+  customerId: number;
 }
 
 export interface UpdateOpportunityDto {
@@ -24,7 +24,7 @@ export interface UpdateOpportunityDto {
   stage?: 'lead' | 'qualification' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost';
   probability?: number;
   expectedCloseDate?: string;
-  customerId?: string;
+  customerId?: number;
 }
 
 @Injectable()
@@ -38,7 +38,7 @@ export class OpportunitiesService {
     private readonly memberRepository: Repository<Member>,
   ) {}
 
-  async createOpportunity(createOpportunityDto: CreateOpportunityDto, memberId: string, tenantId: string) {
+  async createOpportunity(createOpportunityDto: CreateOpportunityDto, memberId: number, tenantId: number) {
     // 验证客户是否存在（可以是公海或私海）
     const customer = await this.customerRepository.findOne({
       where: { id: createOpportunityDto.customerId },
@@ -71,7 +71,7 @@ export class OpportunitiesService {
     });
   }
 
-  async findAllOpportunities(memberId: string, tenantId: string, page = 1, limit = 10, customerId?: string) {
+  async findAllOpportunities(memberId: number, tenantId: number, page = 1, limit = 10, customerId?: number) {
     const whereConditions: any[] = [
       { ownerId: memberId }, // 当前用户负责的商机
       { ownerId: null }      // 公海商机（没有负责人）
@@ -119,7 +119,7 @@ export class OpportunitiesService {
     };
   }
 
-  async findOpportunityById(id: string, memberId: string, tenantId: string) {
+  async findOpportunityById(id: number, memberId: number, tenantId: number) {
     const opportunity = await this.opportunityRepository.findOne({
       where: [
         { id, ownerId: memberId, tenantId }, // 当前用户负责的商机
@@ -136,10 +136,10 @@ export class OpportunitiesService {
   }
 
   async updateOpportunity(
-    id: string,
+    id: number,
     updateOpportunityDto: UpdateOpportunityDto,
-    memberId: string,
-    tenantId: string,
+    memberId: number,
+    tenantId: number,
   ) {
     const opportunity = await this.findOpportunityById(id, memberId, tenantId);
 
@@ -184,7 +184,7 @@ export class OpportunitiesService {
   }
 
 
-  async getOpportunityStats(memberId: string) {
+  async getOpportunityStats(memberId: number) {
     const totalOpportunities = await this.opportunityRepository.count({
       where: { ownerId: memberId },
     });
@@ -233,7 +233,7 @@ export class OpportunitiesService {
     };
   }
 
-  async updateOpportunityStage(id: string, stage: OpportunityStage, memberId: string) {
+  async updateOpportunityStage(id: number, stage: OpportunityStage, memberId: number) {
     // 仅基于memberId校验；如需更严格，可从机会关联的tenantId再比对
     const opportunity = await this.opportunityRepository.findOne({ where: { id } });
     if (!opportunity) throw new NotFoundException('商机不存在');
@@ -251,9 +251,9 @@ export class OpportunitiesService {
   }
 
   async updateOpportunityStatus(
-    id: string,
+    id: number,
     status: OpportunityStatus,
-    memberId: string,
+    memberId: number,
   ) {
     const opportunity = await this.opportunityRepository.findOne({ where: { id } });
     if (!opportunity) throw new NotFoundException('商机不存在');
@@ -269,9 +269,9 @@ export class OpportunitiesService {
   }
 
   async closeOpportunity(
-    id: string,
+    id: number,
     status: 'closed_won' | 'closed_lost',
-    memberId: string,
+    memberId: number,
   ) {
     const opportunity = await this.opportunityRepository.findOne({ where: { id } });
     if (!opportunity) throw new NotFoundException('商机不存在');
@@ -283,7 +283,7 @@ export class OpportunitiesService {
     return await this.opportunityRepository.save(opportunity);
   }
 
-  async deleteOpportunity(id: string, memberId: string, tenantId: string) {
+  async deleteOpportunity(id: number, memberId: number, tenantId: number) {
     const opportunity = await this.findOpportunityById(id, memberId, tenantId);
     await this.opportunityRepository.remove(opportunity);
   }

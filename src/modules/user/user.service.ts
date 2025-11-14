@@ -28,9 +28,9 @@ export interface CreateUserDto {
   phone: string;
   password?: string;
   avatar?: string;
-  tenantId: string;
-  departmentId?: string;
-  roleIds?: string[];
+  tenantId: string | number;
+  departmentId?: string | number;
+  roleIds?: (string | number)[];
 }
 
 @Injectable()
@@ -78,8 +78,9 @@ export class UserService {
     }
 
     // 验证租户是否存在
+    const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
     const tenant = await this.tenantRepository.findOne({
-      where: { id: tenantId }
+      where: { id: tenantIdNum }
     });
     if (!tenant) {
       throw new NotFoundException('租户不存在');
@@ -87,10 +88,11 @@ export class UserService {
 
     // 验证角色是否存在（如果提供了角色）
     if (roleIds.length > 0) {
+      const roleIdsNum = roleIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
       const roles = await this.roleRepository.find({
-        where: roleIds.map(id => ({ id, tenantId }))
+        where: roleIdsNum.map(id => ({ id, tenantId: tenantIdNum }))
       });
-      if (roles.length !== roleIds.length) {
+      if (roles.length !== roleIdsNum.length) {
         throw new NotFoundException('部分角色不存在');
       }
     }
@@ -110,19 +112,19 @@ export class UserService {
 
     const savedUser = await this.userRepository.save(user);
 
-    // 创建租户成员记录
+    // 创建租户成员记录（注意：Member 实体没有 isManager 字段）
     const member = this.memberRepository.create({
       userId: savedUser.id,
-      tenantId,
-      isManager: false
+      tenantId: tenantIdNum
     });
 
     const savedMember = await this.memberRepository.save(member);
 
     // 如果指定了部门，创建成员部门关联
     if (departmentId) {
+      const departmentIdNum = typeof departmentId === 'string' ? parseInt(departmentId, 10) : departmentId;
       const department = await this.memberRepository.manager.findOne(Department, {
-        where: { id: departmentId }
+        where: { id: departmentIdNum }
       });
       if (department) {
         // 使用 TypeORM 的多对多关系管理
@@ -136,7 +138,8 @@ export class UserService {
 
     // 创建成员角色关联（如果提供了角色）
     if (roleIds.length > 0) {
-      const memberRoles = roleIds.map(roleId => 
+      const roleIdsNum = roleIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
+      const memberRoles = roleIdsNum.map(roleId => 
         this.memberRoleRepository.create({
           memberId: savedMember.id,
           roleId
@@ -179,9 +182,10 @@ export class UserService {
     };
   }
 
-  async getUserById(id: string) {
+  async getUserById(id: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
     const user = await this.userRepository.findOne({
-      where: { id },
+      where: { id: idNum },
       relations: ['members', 'members.tenant']
     });
 
@@ -192,9 +196,11 @@ export class UserService {
     return user;
   }
 
-  async updateUser(id: string, updateUserDto: UpdateUserDto, operatorId: string) {
+  async updateUser(id: string | number, updateUserDto: UpdateUserDto, operatorId: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
+    const operatorIdNum = typeof operatorId === 'string' ? parseInt(operatorId, 10) : operatorId;
     const user = await this.userRepository.findOne({
-      where: { id },
+      where: { id: idNum },
     });
 
     if (!user) {
@@ -202,7 +208,7 @@ export class UserService {
     }
 
     // 检查操作者权限（只有用户本人或管理员可以修改）
-    if (user.id !== operatorId) {
+    if (user.id !== operatorIdNum) {
       // 这里可以添加管理员权限检查
       throw new ForbiddenException('没有权限修改此用户信息');
     }
@@ -242,9 +248,11 @@ export class UserService {
     return await this.userRepository.save(user);
   }
 
-  async updateUserProfile(id: string, updateProfileDto: UpdateUserProfileDto, operatorId: string) {
+  async updateUserProfile(id: string | number, updateProfileDto: UpdateUserProfileDto, operatorId: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
+    const operatorIdNum = typeof operatorId === 'string' ? parseInt(operatorId, 10) : operatorId;
     const user = await this.userRepository.findOne({
-      where: { id },
+      where: { id: idNum },
     });
 
     if (!user) {
@@ -252,7 +260,7 @@ export class UserService {
     }
 
     // 只有用户本人可以修改个人资料
-    if (user.id !== operatorId) {
+    if (user.id !== operatorIdNum) {
       throw new ForbiddenException('没有权限修改此用户资料');
     }
 
@@ -281,9 +289,11 @@ export class UserService {
     return await this.userRepository.save(user);
   }
 
-  async updateUserStatus(id: string, status: UserStatus, operatorId: string) {
+  async updateUserStatus(id: string | number, status: UserStatus, operatorId: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
+    const operatorIdNum = typeof operatorId === 'string' ? parseInt(operatorId, 10) : operatorId;
     const user = await this.userRepository.findOne({
-      where: { id },
+      where: { id: idNum },
     });
 
     if (!user) {
@@ -292,7 +302,7 @@ export class UserService {
 
     // 检查操作者权限（只有管理员可以修改用户状态）
     // 这里可以添加管理员权限检查
-    if (user.id === operatorId) {
+    if (user.id === operatorIdNum) {
       throw new ForbiddenException('不能修改自己的状态');
     }
 
@@ -300,9 +310,10 @@ export class UserService {
     return await this.userRepository.save(user);
   }
 
-  async getUserMembers(userId: string) {
+  async getUserMembers(userId: string | number) {
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     const members = await this.memberRepository.find({
-      where: { userId },
+      where: { userId: userIdNum },
       relations: ['tenant', 'memberRoles', 'memberRoles.role']
     });
 

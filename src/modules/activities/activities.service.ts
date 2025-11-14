@@ -16,11 +16,11 @@ export interface CreateActivityDto {
   attachments?: string[];
   participants?: string[];
   relatedToType: RelatedToType;
-  relatedToId: string;
+  relatedToId: number;
   priority?: ActivityPriority;
   content?: string;
-  assignedBy?: string;
-  ownerId?: string; // 指定负责人，若不传则默认当前用户
+  assignedBy?: number;
+  ownerId?: number; // 指定负责人，若不传则默认当前用户
 }
 
 export interface UpdateActivityDto {
@@ -37,10 +37,10 @@ export interface UpdateActivityDto {
   attachments?: string[];
   participants?: string[];
   relatedToType?: RelatedToType;
-  relatedToId?: string;
+  relatedToId?: number;
   priority?: ActivityPriority;
   content?: string;
-  assignedBy?: string;
+  assignedBy?: number;
 }
 
 @Injectable()
@@ -53,7 +53,7 @@ export class ActivitiesService {
     private readonly memberRepository: Repository<Member>,
   ) {}
 
-  async createActivity(createActivityDto: CreateActivityDto, memberId: string, tenantId: string) {
+  async createActivity(createActivityDto: CreateActivityDto, memberId: number, tenantId: number) {
     const activity = this.activityRepository.create({
       ...createActivityDto,
       // 如果前端传入 ownerId（多负责人场景），则按传入值设置；否则默认当前用户
@@ -64,7 +64,7 @@ export class ActivitiesService {
     return await this.activityRepository.save(activity);
   }
 
-  async findAllActivities(tenantId: string, page = 1, limit = 10, filters?: any) {
+  async findAllActivities(tenantId: number, page = 1, limit = 10, filters?: any) {
     const queryBuilder = this.activityRepository
       .createQueryBuilder('activity')
       .leftJoinAndSelect('activity.owner', 'owner')
@@ -116,7 +116,7 @@ export class ActivitiesService {
     };
   }
 
-  async findActivityById(id: string, memberId: string) {
+  async findActivityById(id: number, memberId: number) {
     const activity = await this.activityRepository.findOne({
       where: { id, ownerId: memberId },
     });
@@ -128,20 +128,20 @@ export class ActivitiesService {
     return activity;
   }
 
-  async updateActivity(id: string, updateActivityDto: UpdateActivityDto, memberId: string) {
+  async updateActivity(id: number, updateActivityDto: UpdateActivityDto, memberId: number) {
     const activity = await this.findActivityById(id, memberId);
 
     Object.assign(activity, updateActivityDto);
     return await this.activityRepository.save(activity);
   }
 
-  async deleteActivity(id: string, memberId: string) {
+  async deleteActivity(id: number, memberId: number) {
     const activity = await this.findActivityById(id, memberId);
     await this.activityRepository.softDelete(id);
     return { message: '活动删除成功' };
   }
 
-  async deleteBatchActivities(ids: string[], memberId: string) {
+  async deleteBatchActivities(ids: number[], memberId: number) {
     // 验证所有活动都属于当前用户
     const activities = await this.activityRepository.find({
       where: { id: { $in: ids } as any, ownerId: memberId },
@@ -155,7 +155,7 @@ export class ActivitiesService {
     return { message: '批量删除活动成功' };
   }
 
-  async startActivity(id: string, memberId: string) {
+  async startActivity(id: number, memberId: number) {
     const activity = await this.findActivityById(id, memberId);
     
     if (activity.status !== ActivityStatus.PLANNED) {
@@ -168,7 +168,7 @@ export class ActivitiesService {
     return await this.activityRepository.save(activity);
   }
 
-  async completeActivity(id: string, outcome: string, memberId: string) {
+  async completeActivity(id: number, outcome: string, memberId: number) {
     const activity = await this.findActivityById(id, memberId);
     
     if (activity.status !== ActivityStatus.IN_PROGRESS) {
@@ -182,7 +182,7 @@ export class ActivitiesService {
     return await this.activityRepository.save(activity);
   }
 
-  async getActivityStats(memberId: string) {
+  async getActivityStats(memberId: number) {
     const totalActivities = await this.activityRepository.count({
       where: { ownerId: memberId },
     });
@@ -238,7 +238,7 @@ export class ActivitiesService {
     };
   }
 
-  async getUpcomingActivities(memberId: string, days = 7) {
+  async getUpcomingActivities(memberId: number, days = 7) {
     const startDate = new Date();
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + days);

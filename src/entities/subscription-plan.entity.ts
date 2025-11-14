@@ -33,6 +33,7 @@ export class SubscriptionPlan extends BaseEntity {
   price: number;
 
   @Column({
+    name: 'billing_cycle',
     type: 'enum',
     enum: BillingCycle,
     default: BillingCycle.MONTHLY,
@@ -40,16 +41,16 @@ export class SubscriptionPlan extends BaseEntity {
   })
   billingCycle: BillingCycle;
 
-  @Column({ type: 'int', default: -1, comment: '用户数量限制(-1表示无限制)' })
+  @Column({ name: 'user_limit', type: 'int', default: -1, comment: '用户数量限制(-1表示无限制)' })
   userLimit: number;
 
-  @Column({ type: 'int', default: -1, comment: '存储空间限制(GB, -1表示无限制)' })
+  @Column({ name: 'storage_limit', type: 'int', default: -1, comment: '存储空间限制(GB, -1表示无限制)' })
   storageLimit: number;
 
   @Column({ type: 'json', nullable: true, comment: '功能特性' })
   features?: string[];
 
-  @Column({ type: 'boolean', default: true, comment: '是否启用' })
+  @Column({ name: 'is_active', type: 'boolean', default: true, comment: '是否启用' })
   isActive: boolean;
 
   @Column({ type: 'int', default: 0, comment: '排序' })

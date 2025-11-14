@@ -15,6 +15,7 @@ export class DatabaseService {
 
   /**
    * 初始化数据库 - 创建数据库和表
+   * 注意：数据库迁移由 migrationService 处理，此处不执行迁移
    */
   async initializeDatabase(): Promise<void> {
     try {
@@ -23,13 +24,11 @@ export class DatabaseService {
       // 1. 创建数据库（如果不存在）
       await this.createDatabaseIfNotExists();
 
-      // 2. 运行数据库迁移
-      await this.runMigrations();
-
-      // 3. 插入基础数据
+      // 2. 插入基础数据
       await this.seedBaseData();
 
       this.logger.log('数据库初始化完成！');
+      this.logger.log('注意：数据库迁移由 migrationService 单独处理');
     } catch (error) {
       this.logger.error('数据库初始化失败:', error);
       throw error;
@@ -79,24 +78,6 @@ export class DatabaseService {
   }
 
   /**
-   * 运行数据库迁移
-   */
-  private async runMigrations(): Promise<void> {
-    try {
-      if (!this.dataSource.isInitialized) {
-        await this.dataSource.initialize();
-      }
-
-      // 同步数据库结构
-      await this.dataSource.synchronize();
-      this.logger.log('数据库表结构同步完成');
-    } catch (error) {
-      this.logger.error('数据库迁移失败:', error);
-      throw error;
-    }
-  }
-
-  /**
    * 插入基础数据
    */
   private async seedBaseData(): Promise<void> {
@@ -123,172 +104,57 @@ export class DatabaseService {
       return;
     }
 
-    const permissions = [
-      {
-        id: 'perm-001',
-        name: '用户管理',
-        code: 'user:manage',
-        description: '用户管理权限',
-        type: PermissionType.MENU,
-        parentId: null,
-        sort: 1,
-        isActive: true,
-      },
-      {
-        id: 'perm-002',
-        name: '客户管理',
-        code: 'customer:manage',
-        description: '客户管理权限',
-        type: PermissionType.MENU,
-        parentId: null,
-        sort: 2,
-        isActive: true,
-      },
-      {
-        id: 'perm-003',
-        name: '商机管理',
-        code: 'opportunity:manage',
-        description: '商机管理权限',
-        type: PermissionType.MENU,
-        parentId: null,
-        sort: 3,
-        isActive: true,
-      },
-      {
-        id: 'perm-004',
-        name: '活动管理',
-        code: 'activity:manage',
-        description: '活动管理权限',
-        type: PermissionType.MENU,
-        parentId: null,
-        sort: 4,
-        isActive: true,
-      },
-      {
-        id: 'perm-005',
-        name: '查看客户',
-        code: 'customer:view',
-        description: '查看客户权限',
-        type: PermissionType.API,
-        parentId: 'perm-002',
-        sort: 1,
-        isActive: true,
-      },
-      {
-        id: 'perm-006',
-        name: '创建客户',
-        code: 'customer:create',
-        description: '创建客户权限',
-        type: PermissionType.API,
-        parentId: 'perm-002',
-        sort: 2,
-        isActive: true,
-      },
-      {
-        id: 'perm-007',
-        name: '编辑客户',
-        code: 'customer:edit',
-        description: '编辑客户权限',
-        type: PermissionType.API,
-        parentId: 'perm-002',
-        sort: 3,
-        isActive: true,
-      },
-      {
-        id: 'perm-008',
-        name: '删除客户',
-        code: 'customer:delete',
-        description: '删除客户权限',
-        type: PermissionType.API,
-        parentId: 'perm-002',
-        sort: 4,
-        isActive: true,
-      },
-      {
-        id: 'perm-009',
-        name: '查看商机',
-        code: 'opportunity:view',
-        description: '查看商机权限',
-        type: PermissionType.API,
-        parentId: 'perm-003',
-        sort: 1,
-        isActive: true,
-      },
-      {
-        id: 'perm-010',
-        name: '创建商机',
-        code: 'opportunity:create',
-        description: '创建商机权限',
-        type: PermissionType.API,
-        parentId: 'perm-003',
-        sort: 2,
-        isActive: true,
-      },
-      {
-        id: 'perm-011',
-        name: '编辑商机',
-        code: 'opportunity:edit',
-        description: '编辑商机权限',
-        type: PermissionType.API,
-        parentId: 'perm-003',
-        sort: 3,
-        isActive: true,
-      },
-      {
-        id: 'perm-012',
-        name: '删除商机',
-        code: 'opportunity:delete',
-        description: '删除商机权限',
-        type: PermissionType.API,
-        parentId: 'perm-003',
-        sort: 4,
-        isActive: true,
-      },
-      {
-        id: 'perm-013',
-        name: '查看活动',
-        code: 'activity:view',
-        description: '查看活动权限',
-        type: PermissionType.API,
-        parentId: 'perm-004',
-        sort: 1,
-        isActive: true,
-      },
-      {
-        id: 'perm-014',
-        name: '创建活动',
-        code: 'activity:create',
-        description: '创建活动权限',
-        type: PermissionType.API,
-        parentId: 'perm-004',
-        sort: 2,
-        isActive: true,
-      },
-      {
-        id: 'perm-015',
-        name: '编辑活动',
-        code: 'activity:edit',
-        description: '编辑活动权限',
-        type: PermissionType.API,
-        parentId: 'perm-004',
-        sort: 3,
-        isActive: true,
-      },
-      {
-        id: 'perm-016',
-        name: '删除活动',
-        code: 'activity:delete',
-        description: '删除活动权限',
-        type: PermissionType.API,
-        parentId: 'perm-004',
-        sort: 4,
-        isActive: true,
-      },
+    // 先插入父权限
+    const parentPermissions = [
+      { name: '用户管理', code: 'user:manage', description: '用户管理权限', type: PermissionType.MENU, parentId: null, sort: 1, isActive: true },
+      { name: '客户管理', code: 'customer:manage', description: '客户管理权限', type: PermissionType.MENU, parentId: null, sort: 2, isActive: true },
+      { name: '商机管理', code: 'opportunity:manage', description: '商机管理权限', type: PermissionType.MENU, parentId: null, sort: 3, isActive: true },
+      { name: '活动管理', code: 'activity:manage', description: '活动管理权限', type: PermissionType.MENU, parentId: null, sort: 4, isActive: true },
     ];
 
-    for (const permission of permissions) {
-      const entity = permissionRepository.create(permission);
-      await permissionRepository.save(entity);
+    const savedParents = new Map<string, number>();
+    for (const perm of parentPermissions) {
+      const existing = await permissionRepository.findOne({ where: { code: perm.code } });
+      if (!existing) {
+        const entity = permissionRepository.create(perm);
+        const saved = await permissionRepository.save(entity);
+        savedParents.set(perm.code, saved.id);
+      } else {
+        savedParents.set(perm.code, existing.id);
+      }
+    }
+
+    // 插入子权限
+    const childPermissions = [
+      { name: '查看客户', code: 'customer:view', description: '查看客户权限', type: PermissionType.API, parentCode: 'customer:manage', sort: 1, isActive: true },
+      { name: '创建客户', code: 'customer:create', description: '创建客户权限', type: PermissionType.API, parentCode: 'customer:manage', sort: 2, isActive: true },
+      { name: '编辑客户', code: 'customer:edit', description: '编辑客户权限', type: PermissionType.API, parentCode: 'customer:manage', sort: 3, isActive: true },
+      { name: '删除客户', code: 'customer:delete', description: '删除客户权限', type: PermissionType.API, parentCode: 'customer:manage', sort: 4, isActive: true },
+      { name: '查看商机', code: 'opportunity:view', description: '查看商机权限', type: PermissionType.API, parentCode: 'opportunity:manage', sort: 1, isActive: true },
+      { name: '创建商机', code: 'opportunity:create', description: '创建商机权限', type: PermissionType.API, parentCode: 'opportunity:manage', sort: 2, isActive: true },
+      { name: '编辑商机', code: 'opportunity:edit', description: '编辑商机权限', type: PermissionType.API, parentCode: 'opportunity:manage', sort: 3, isActive: true },
+      { name: '删除商机', code: 'opportunity:delete', description: '删除商机权限', type: PermissionType.API, parentCode: 'opportunity:manage', sort: 4, isActive: true },
+      { name: '查看活动', code: 'activity:view', description: '查看活动权限', type: PermissionType.API, parentCode: 'activity:manage', sort: 1, isActive: true },
+      { name: '创建活动', code: 'activity:create', description: '创建活动权限', type: PermissionType.API, parentCode: 'activity:manage', sort: 2, isActive: true },
+      { name: '编辑活动', code: 'activity:edit', description: '编辑活动权限', type: PermissionType.API, parentCode: 'activity:manage', sort: 3, isActive: true },
+      { name: '删除活动', code: 'activity:delete', description: '删除活动权限', type: PermissionType.API, parentCode: 'activity:manage', sort: 4, isActive: true },
+    ];
+
+    for (const perm of childPermissions) {
+      const existing = await permissionRepository.findOne({ where: { code: perm.code } });
+      if (!existing) {
+        const parentId = savedParents.get(perm.parentCode);
+        const entity = permissionRepository.create({
+          name: perm.name,
+          code: perm.code,
+          description: perm.description,
+          type: perm.type,
+          parentId: parentId || null,
+          sort: perm.sort,
+          isActive: perm.isActive,
+        });
+        await permissionRepository.save(entity);
+      }
     }
 
     this.logger.log('权限数据插入完成');
@@ -309,7 +175,6 @@ export class DatabaseService {
 
     const plans = [
       {
-        id: 'plan-001',
         name: '免费版',
         description: '免费版套餐，适合个人用户',
         type: PlanType.FREE,
@@ -322,7 +187,6 @@ export class DatabaseService {
         sort: 1,
       },
       {
-        id: 'plan-002',
         name: '基础版',
         description: '基础版套餐，适合小团队',
         type: PlanType.BASIC,
@@ -335,7 +199,6 @@ export class DatabaseService {
         sort: 2,
       },
       {
-        id: 'plan-003',
         name: '专业版',
         description: '专业版套餐，适合中型企业',
         type: PlanType.PROFESSIONAL,
@@ -348,7 +211,6 @@ export class DatabaseService {
         sort: 3,
       },
       {
-        id: 'plan-004',
         name: '企业版',
         description: '企业版套餐，适合大型企业',
         type: PlanType.ENTERPRISE,
@@ -363,8 +225,11 @@ export class DatabaseService {
     ];
 
     for (const plan of plans) {
-      const entity = planRepository.create(plan);
-      await planRepository.save(entity);
+      const existing = await planRepository.findOne({ where: { name: plan.name } });
+      if (!existing) {
+        const entity = planRepository.create(plan);
+        await planRepository.save(entity);
+      }
     }
 
     this.logger.log('套餐数据插入完成');

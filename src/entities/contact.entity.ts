@@ -38,24 +38,24 @@ export class Contact extends BaseEntity {
   })
   type: ContactType;
 
-  @Column({ type: 'boolean', default: false, comment: '是否主要联系人' })
+  @Column({ name: 'is_primary', type: 'boolean', default: false, comment: '是否主要联系人' })
   isPrimary: boolean;
 
   @Column({ nullable: true, comment: '备注' })
   notes?: string;
 
-  @Column({ type: 'json', nullable: true, comment: '其他联系方式' })
+  @Column({ name: 'other_contacts', type: 'json', nullable: true, comment: '其他联系方式' })
   otherContacts?: Record<string, string>;
 
   // 关联关系
-  @Column({ comment: '客户ID' })
-  customerId: string;
+  @Column({ name: 'customer_id', type: 'bigint', comment: '客户ID' })
+  customerId: number;
 
   @ManyToOne(() => Customer, (customer) => customer.contacts)
-  @JoinColumn({ name: 'customerId' })
+  @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 
   // 租户ID（冗余，便于隔离与过滤）
-  @Column({ name: 'tenant_id', nullable: true, comment: '租户ID' })
-  tenantId?: string;
+  @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
+  tenantId?: number;
 }

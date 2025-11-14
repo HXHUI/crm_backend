@@ -74,7 +74,7 @@ export class CustomersService {
     private readonly memberRepository: Repository<Member>,
   ) {}
 
-  async createCustomer(createCustomerDto: CreateCustomerDto, memberId: string, tenantId: string) {
+  async createCustomer(createCustomerDto: CreateCustomerDto, memberId: number, tenantId: number) {
     const { poolType = CustomerPoolType.PRIVATE, ...restDto } = createCustomerDto;
     
     const customer = this.customerRepository.create({
@@ -87,7 +87,7 @@ export class CustomersService {
     return await this.customerRepository.save(customer);
   }
 
-  async findAllCustomers(query: QueryCustomerDto, memberId: string, tenantId: string) {
+  async findAllCustomers(query: QueryCustomerDto, memberId: number, tenantId: number) {
     const { search, type, status, source, industry, province, city, district, page = 1, limit = 10 } = query;
     
     const queryBuilder = this.customerRepository.createQueryBuilder('customer')
@@ -168,7 +168,7 @@ export class CustomersService {
     };
   }
 
-  async findCustomerById(id: string, memberId: string, tenantId: string) {
+  async findCustomerById(id: number, memberId: number, tenantId: number) {
     const customer = await this.customerRepository.findOne({
       where: { id, tenantId },
       relations: ['contacts', 'opportunities'],
@@ -181,19 +181,19 @@ export class CustomersService {
     return customer;
   }
 
-  async updateCustomer(id: string, updateCustomerDto: UpdateCustomerDto, memberId: string, tenantId: string) {
+  async updateCustomer(id: number, updateCustomerDto: UpdateCustomerDto, memberId: number, tenantId: number) {
     const customer = await this.findCustomerById(id, memberId, tenantId);
 
     Object.assign(customer, updateCustomerDto);
     return await this.customerRepository.save(customer);
   }
 
-  async deleteCustomer(id: string, memberId: string, tenantId: string) {
+  async deleteCustomer(id: number, memberId: number, tenantId: number) {
     const customer = await this.findCustomerById(id, memberId, tenantId);
     await this.customerRepository.softDelete(id);
   }
 
-  async deleteBatchCustomers(ids: string[], memberId: string, tenantId: string) {
+  async deleteBatchCustomers(ids: number[], memberId: number, tenantId: number) {
     // 验证所有客户都属于当前成员
     const customers = await this.customerRepository
       .createQueryBuilder('customer')
@@ -208,7 +208,7 @@ export class CustomersService {
     await this.customerRepository.softDelete(ids);
   }
 
-  async createContact(customerId: string, createContactDto: CreateContactDto, memberId: string, tenantId: string) {
+  async createContact(customerId: number, createContactDto: CreateContactDto, memberId: number, tenantId: number) {
     // 验证客户是否属于当前成员
     const customer = await this.findCustomerById(customerId, memberId, tenantId);
 
@@ -230,10 +230,10 @@ export class CustomersService {
   }
 
   async updateContact(
-    contactId: string,
+    contactId: number,
     updateContactDto: Partial<CreateContactDto>,
-    memberId: string,
-    tenantId: string,
+    memberId: number,
+    tenantId: number,
   ) {
     const contact = await this.contactRepository.findOne({
       where: { id: contactId },
@@ -261,7 +261,7 @@ export class CustomersService {
     return await this.contactRepository.save(contact);
   }
 
-  async deleteContact(contactId: string, memberId: string, tenantId: string) {
+  async deleteContact(contactId: number, memberId: number, tenantId: number) {
     const contact = await this.contactRepository.findOne({
       where: { id: contactId },
       relations: ['customer'],
@@ -280,7 +280,7 @@ export class CustomersService {
     return { message: '联系人删除成功' };
   }
 
-  async getCustomerStats(memberId: string, tenantId: string) {
+  async getCustomerStats(memberId: number, tenantId: number) {
     const totalCustomers = await this.customerRepository.count({
       where: { ownerId: memberId, tenantId },
     });
@@ -309,7 +309,7 @@ export class CustomersService {
   }
 
   // 认领客户（从公海转入私海）
-  async claimCustomer(customerId: string, memberId: string, tenantId: string) {
+  async claimCustomer(customerId: number, memberId: number, tenantId: number) {
     const customer = await this.customerRepository.findOne({ where: { id: customerId, tenantId } });
 
     if (!customer) {
@@ -327,7 +327,7 @@ export class CustomersService {
   }
 
   // 回收客户（从私海转入公海）
-  async releaseCustomer(customerId: string, memberId: string, tenantId: string) {
+  async releaseCustomer(customerId: number, memberId: number, tenantId: number) {
     const customer = await this.customerRepository.findOne({ where: { id: customerId, tenantId } });
 
     if (!customer) {
@@ -345,7 +345,7 @@ export class CustomersService {
   }
 
   // 获取公海客户列表
-  async getPublicCustomers(query: QueryCustomerDto, tenantId: string) {
+  async getPublicCustomers(query: QueryCustomerDto, tenantId: number) {
     const { search, type, status, page = 1, limit = 10 } = query;
     
     const queryBuilder = this.customerRepository.createQueryBuilder('customer')
