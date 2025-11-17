@@ -25,6 +25,11 @@ import { ActivitiesModule } from './modules/activities/activities.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { StatisticsModule } from './modules/statistics/statistics.module';
 import { TargetsModule } from './modules/targets/targets.module';
+import { ProductsModule } from './modules/products/products.module';
+import { QuotesModule } from './modules/quotes/quotes.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { ContractsModule } from './modules/contracts/contracts.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 // 健康检查
 import { HealthController } from './common/health/health.controller';
@@ -66,6 +71,11 @@ import * as entities from './entities';
     LeadsModule,
     StatisticsModule,
     TargetsModule,
+    ProductsModule,
+    QuotesModule,
+    OrdersModule,
+    ContractsModule,
+    UploadModule,
   ],
   controllers: [
     HealthController,
