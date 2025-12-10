@@ -14,6 +14,7 @@ export interface UpdateUserDto {
   email?: string;
   phone?: string;
   avatar?: string;
+  roleIds?: (string | number)[];
 }
 
 export interface UpdateUserProfileDto {
@@ -48,7 +49,7 @@ export class UserService {
     private readonly roleRepository: Repository<Role>,
   ) {}
 
-  async createUser(createUserDto: CreateUserDto) {
+  async createUser(createUserDto: CreateUserDto, createdByUserId?: number) {
     const { username, email, phone, password = '88888888', avatar, tenantId, departmentId, roleIds = [] } = createUserDto;
 
     // 检查用户名是否已存在
@@ -107,7 +108,8 @@ export class UserService {
       phone,
       passwordHash,
       avatar,
-      status: UserStatus.ACTIVE
+      status: UserStatus.ACTIVE,
+      createdBy: createdByUserId || null, // 如果提供了创建者，则记录；否则为null（系统创建）
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -245,7 +247,37 @@ export class UserService {
     }
 
     Object.assign(user, updateUserDto);
-    return await this.userRepository.save(user);
+    const savedUser = await this.userRepository.save(user);
+
+    // 更新成员角色（如果提供了角色）
+    if (updateUserDto.roleIds !== undefined) {
+      // 获取用户的成员记录
+      const member = await this.memberRepository.findOne({
+        where: { userId: savedUser.id },
+        relations: ['memberRoles'],
+      });
+
+      if (member) {
+        // 删除现有的角色关联
+        if (member.memberRoles && member.memberRoles.length > 0) {
+          await this.memberRoleRepository.remove(member.memberRoles);
+        }
+
+        // 创建新的角色关联
+        if (updateUserDto.roleIds.length > 0) {
+          const roleIdsNum = updateUserDto.roleIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
+          const memberRoles = roleIdsNum.map(roleId => 
+            this.memberRoleRepository.create({
+              memberId: member.id,
+              roleId
+            })
+          );
+          await this.memberRoleRepository.save(memberRoles);
+        }
+      }
+    }
+
+    return savedUser;
   }
 
   async updateUserProfile(id: string | number, updateProfileDto: UpdateUserProfileDto, operatorId: string | number) {

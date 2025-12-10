@@ -61,6 +61,12 @@ export class CreateContactDto {
   @IsNotEmpty({ message: '请选择关联客户' })
   @Transform(({ value }) => typeof value === 'string' ? parseInt(value, 10) : value)
   customerId: number;
+
+  @ApiProperty({ description: '上级联系人ID', example: 1, required: false })
+  @IsNumber({}, { message: '上级联系人ID必须是数字' })
+  @IsOptional()
+  @Transform(({ value }) => value ? (typeof value === 'string' ? parseInt(value, 10) : value) : undefined)
+  parentId?: number;
 }
 
 export class UpdateContactDto {
@@ -115,9 +121,20 @@ export class UpdateContactDto {
   @IsObject({ message: '其他联系方式必须是对象' })
   @IsOptional()
   otherContacts?: Record<string, string>;
+
+  @ApiProperty({ description: '上级联系人ID', example: 1, required: false })
+  @IsNumber({}, { message: '上级联系人ID必须是数字' })
+  @IsOptional()
+  @Transform(({ value }) => value ? (typeof value === 'string' ? parseInt(value, 10) : value) : undefined)
+  parentId?: number;
 }
 
 export class QueryContactDto {
+  @ApiProperty({ description: '模糊搜索（姓名、邮箱、手机号）', required: false })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
   @ApiProperty({ description: '联系人姓名', required: false })
   @IsString()
   @IsOptional()
@@ -156,5 +173,5 @@ export class QueryContactDto {
   @Transform(({ value }) => parseInt(value))
   @IsNumber()
   @Min(1)
-  limit?: number = 10;
+  limit?: number = 50;
 }

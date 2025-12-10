@@ -1,13 +1,13 @@
-import { Entity, ManyToOne, JoinColumn, PrimaryColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, ManyToOne, JoinColumn, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Member } from './member.entity';
 import { Department } from './department.entity';
 
 @Entity('member_departments')
 export class MemberDepartment {
-  @PrimaryColumn({ type: 'bigint', comment: '成员ID' })
+  @PrimaryColumn({ name: 'memberId', type: 'bigint', comment: '成员ID' })
   memberId: number;
 
-  @PrimaryColumn({ type: 'bigint', comment: '部门ID' })
+  @PrimaryColumn({ name: 'departmentId', type: 'bigint', comment: '部门ID' })
   departmentId: number;
 
   @CreateDateColumn({ name: 'created_at', comment: '创建时间' })

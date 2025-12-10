@@ -36,7 +36,7 @@ export class DepartmentController {
   async getDepartments(
     @CurrentUser() user: any,
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+    @Query('limit') limit: number = 50,
     @Query('search') search?: string,
   ) {
     const result = await this.departmentService.getDepartments(user.tenantId, page, limit, search);
@@ -65,7 +65,9 @@ export class DepartmentController {
     @Body() createDepartmentDto: CreateDepartmentDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.departmentService.createDepartment(createDepartmentDto, user.tenantId);
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const result = await this.departmentService.createDepartment(createDepartmentDto, tenantId, memberId);
     return {
       code: 201,
       message: '创建部门成功',
@@ -107,13 +109,36 @@ export class DepartmentController {
     @Param('id') id: string,
     @CurrentUser() user: any,
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+    @Query('limit') limit: number = 50,
     @Query('search') search?: string,
   ) {
-    const result = await this.departmentService.getDepartmentMembers(parseInt(id, 10), user.tenantId, page, limit, search);
+    const departmentId = id === 'root' ? 'root' : parseInt(id, 10);
+    const result = await this.departmentService.getDepartmentMembers(departmentId, user.tenantId, page, limit, search);
     return {
       code: 200,
       message: '获取部门成员成功',
+      data: result
+    };
+  }
+
+  // POST /departments/:id/members/batch - 批量添加部门成员（必须在 :id/members 之前）
+  @Post(':id/members/batch')
+  @HttpCode(HttpStatus.CREATED)
+  async batchAddDepartmentMembers(
+    @Param('id') id: string,
+    @Body() body: { memberIds: (string | number)[]; position?: string; isManager?: boolean },
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.departmentService.batchAddDepartmentMembers(
+      parseInt(id, 10),
+      body.memberIds.map(mid => typeof mid === 'string' ? parseInt(mid, 10) : mid),
+      body.position || '',
+      body.isManager || false,
+      user.tenantId
+    );
+    return {
+      code: 201,
+      message: '批量添加部门成员成功',
       data: result
     };
   }
@@ -146,6 +171,20 @@ export class DepartmentController {
     return {
       code: 204,
       message: '移除部门成员成功'
+    };
+  }
+
+  // GET /departments/member/:memberId - 获取指定成员的部门列表
+  @Get('member/:memberId')
+  async getMemberDepartments(
+    @Param('memberId') memberId: string,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.departmentService.getMemberDepartments(parseInt(memberId, 10), user.tenantId);
+    return {
+      code: 200,
+      message: '获取成员部门列表成功',
+      data: result
     };
   }
 }

@@ -24,7 +24,8 @@ export class ProductsController {
   @HttpCode(HttpStatus.CREATED)
   async createProduct(@Body() createProductDto: CreateProductDto, @CurrentUser() user: any) {
     const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
-    const product = await this.productsService.createProduct(createProductDto, tenantId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const product = await this.productsService.createProduct(createProductDto, tenantId, memberId);
     return {
       code: 201,
       message: '创建产品成功',

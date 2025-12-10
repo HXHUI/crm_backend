@@ -1,4 +1,4 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Member } from './member.entity';
 import { Tenant } from './tenant.entity';
@@ -46,4 +46,11 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Tenant, (tenant) => tenant.owner)
   ownedTenants: Tenant[];
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（用户ID，系统管理员创建）' })
+  createdBy?: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 }

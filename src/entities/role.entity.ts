@@ -1,6 +1,7 @@
 import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Tenant } from './tenant.entity';
+import { Member } from './member.entity';
 import { MemberRole } from './member-role.entity';
 import { RolePermission } from './role-permission.entity';
 
@@ -28,4 +29,11 @@ export class Role extends BaseEntity {
 
   @OneToMany(() => RolePermission, (rolePermission) => rolePermission.role)
   rolePermissions: RolePermission[];
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }

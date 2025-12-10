@@ -10,7 +10,7 @@ export class ContactsController {
 
   @Post()
   async create(@Body() createDto: CreateContactDto, @Request() req) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const contact = await this.contactsService.create(createDto, tenantId);
     
     return {
@@ -22,7 +22,7 @@ export class ContactsController {
 
   @Get()
   async findAll(@Query() queryDto: QueryContactDto, @Request() req) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const result = await this.contactsService.findAll(queryDto, tenantId);
     
     return {
@@ -34,7 +34,7 @@ export class ContactsController {
 
   @Get('stats')
   async getStats(@Request() req) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const stats = await this.contactsService.getContactStats(tenantId);
     
     return {
@@ -46,7 +46,7 @@ export class ContactsController {
 
   @Get('customer/:customerId')
   async getContactsByCustomer(@Param('customerId') customerId: string, @Request() req) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const contacts = await this.contactsService.getContactsByCustomer(parseInt(customerId, 10), tenantId);
     
     return {
@@ -56,9 +56,21 @@ export class ContactsController {
     };
   }
 
+  @Get('customer/:customerId/hierarchy')
+  async getContactsHierarchyByCustomer(@Param('customerId') customerId: string, @Request() req) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const contacts = await this.contactsService.getContactsHierarchyByCustomer(parseInt(customerId, 10), tenantId);
+    
+    return {
+      code: 200,
+      message: '获取客户联系人层级树成功',
+      data: contacts,
+    };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const contact = await this.contactsService.findOne(parseInt(id, 10), tenantId);
     
     return {
@@ -68,13 +80,49 @@ export class ContactsController {
     };
   }
 
+  @Get(':id/children')
+  async getChildren(@Param('id') id: string, @Request() req) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const children = await this.contactsService.getChildren(parseInt(id, 10), tenantId);
+    
+    return {
+      code: 200,
+      message: '获取下级联系人成功',
+      data: children,
+    };
+  }
+
+  @Get(':id/parent')
+  async getParent(@Param('id') id: string, @Request() req) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const parent = await this.contactsService.getParent(parseInt(id, 10), tenantId);
+    
+    return {
+      code: 200,
+      message: '获取上级联系人成功',
+      data: parent,
+    };
+  }
+
+  @Get(':id/hierarchy')
+  async getHierarchyTree(@Param('id') id: string, @Request() req) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const tree = await this.contactsService.getHierarchyTree(parseInt(id, 10), tenantId);
+    
+    return {
+      code: 200,
+      message: '获取联系人层级树成功',
+      data: tree,
+    };
+  }
+
   @Patch(':id')
   async update(
     @Param('id') id: string,
     @Body() updateDto: UpdateContactDto,
     @Request() req
   ) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     const contact = await this.contactsService.update(parseInt(id, 10), updateDto, tenantId);
     
     return {
@@ -86,7 +134,7 @@ export class ContactsController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @Request() req) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     await this.contactsService.remove(parseInt(id, 10), tenantId);
     
     return {
@@ -97,7 +145,7 @@ export class ContactsController {
 
   @Delete('batch')
   async batchRemove(@Body() body: { ids: string[] }, @Request() req) {
-    const tenantId = req.user.tenantId;
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
     await this.contactsService.batchRemove(body.ids.map(id => parseInt(id, 10)), tenantId);
     
     return {

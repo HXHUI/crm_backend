@@ -25,7 +25,10 @@ export class OrdersController {
   async createOrder(@Body() createOrderDto: CreateOrderDto, @CurrentUser() user: any) {
     const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
     const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
-    const order = await this.ordersService.createOrder(createOrderDto, memberId, tenantId);
+    const departmentId = user.currentDepartmentId 
+      ? (typeof user.currentDepartmentId === 'string' ? parseInt(user.currentDepartmentId, 10) : user.currentDepartmentId)
+      : undefined;
+    const order = await this.ordersService.createOrder(createOrderDto, memberId, tenantId, departmentId);
     return {
       code: 201,
       message: '创建订单成功',
@@ -38,7 +41,10 @@ export class OrdersController {
   async createOrderFromQuote(@Param('quoteId') quoteId: string, @CurrentUser() user: any) {
     const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
     const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
-    const order = await this.ordersService.createOrderFromQuote(parseInt(quoteId, 10), memberId, tenantId);
+    const departmentId = user.currentDepartmentId 
+      ? (typeof user.currentDepartmentId === 'string' ? parseInt(user.currentDepartmentId, 10) : user.currentDepartmentId)
+      : undefined;
+    const order = await this.ordersService.createOrderFromQuote(parseInt(quoteId, 10), memberId, tenantId, departmentId);
     return {
       code: 201,
       message: '从报价创建订单成功',
@@ -51,7 +57,10 @@ export class OrdersController {
   async createOrderFromContract(@Param('contractId') contractId: string, @CurrentUser() user: any) {
     const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
     const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
-    const order = await this.ordersService.createOrderFromContract(parseInt(contractId, 10), memberId, tenantId);
+    const departmentId = user.currentDepartmentId 
+      ? (typeof user.currentDepartmentId === 'string' ? parseInt(user.currentDepartmentId, 10) : user.currentDepartmentId)
+      : undefined;
+    const order = await this.ordersService.createOrderFromContract(parseInt(contractId, 10), memberId, tenantId, departmentId);
     return {
       code: 201,
       message: '从合同创建订单成功',
@@ -111,6 +120,40 @@ export class OrdersController {
     return {
       code: 200,
       message: '删除订单成功'
+    };
+  }
+
+  @Get(':id/approval-instance')
+  async getApprovalInstance(@Param('id') id: string, @CurrentUser() user: any) {
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const instance = await this.ordersService.getApprovalInstance(parseInt(id, 10), tenantId);
+    return {
+      code: 200,
+      message: '获取审批实例成功',
+      data: instance,
+    };
+  }
+
+  @Post(':id/submit-approval')
+  @HttpCode(HttpStatus.OK)
+  async submitApproval(
+    @Param('id') id: string,
+    @Body() body: { templateId: number; submitComment?: string },
+    @CurrentUser() user: any,
+  ) {
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const instance = await this.ordersService.submitApproval(
+      parseInt(id, 10),
+      body.templateId,
+      body.submitComment || '',
+      memberId,
+      tenantId,
+    );
+    return {
+      code: 200,
+      message: '提交审批成功',
+      data: instance,
     };
   }
 }

@@ -45,7 +45,10 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   database: configService.get<string>('DB_DATABASE', 'crm_db'),
   entities: [__dirname + '/../entities/*.entity{.ts,.js}'],
   synchronize: false, // 暂时禁用同步，避免索引冲突
-  logging: configService.get<string>('NODE_ENV') === 'development',
+  // 只记录错误和警告，不记录查询日志
+  logging: configService.get<string>('NODE_ENV') === 'development' 
+    ? ['error', 'warn'] 
+    : false,
   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
   migrationsRun: true,
   timezone: '+08:00',

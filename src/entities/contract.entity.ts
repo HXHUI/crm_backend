@@ -9,11 +9,15 @@ import { ContractItem } from './contract-item.entity';
 
 export enum ContractStatus {
   DRAFT = 'draft',           // 草稿
+  PENDING_APPROVAL = 'pending_approval', // 审批中
+  APPROVED = 'approved',     // 已审批通过
+  REJECTED = 'rejected',     // 已拒绝（审批拒绝）
   PENDING_SIGN = 'pending_sign',  // 待签署
   SIGNED = 'signed',        // 已签署
   ACTIVE = 'active',         // 已生效
   EXPIRED = 'expired',       // 已到期
   TERMINATED = 'terminated', // 已终止
+  CANCELLED = 'cancelled',   // 已取消
 }
 
 export enum ContractType {
@@ -75,6 +79,26 @@ export class Contract extends BaseEntity {
   @Column({ name: 'total_amount', type: 'decimal', precision: 10, scale: 2, default: 0, comment: '合同金额' })
   totalAmount: number;
 
+  @Column({
+    name: 'total_amount_excl_tax',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    comment: '不含税总金额',
+  })
+  totalAmountExclTax: number;
+
+  @Column({
+    name: 'tax_amount',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    comment: '税金合计',
+  })
+  taxAmount: number;
+
   @Column({ name: 'sign_date', type: 'date', nullable: true, comment: '签署日期' })
   signDate?: Date;
 
@@ -109,5 +133,15 @@ export class Contract extends BaseEntity {
   // 租户ID
   @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
   tenantId?: number;
+
+  @Column({ name: 'department_id', type: 'bigint', nullable: true, comment: '部门ID' })
+  departmentId?: number;
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }
 

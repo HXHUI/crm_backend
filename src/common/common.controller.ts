@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common'
 import { INDUSTRY_OPTIONS } from './constants/industry'
 import { SOURCE_OPTIONS } from './constants/source'
+import { UNQUALIFIED_REASON_OPTIONS } from './constants/unqualified-reason'
+import { LOST_TYPE_OPTIONS } from './constants/lost-type'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -14,6 +16,16 @@ export class CommonController {
   @Get('sources')
   getSources() {
     return { code: 200, message: 'OK', data: SOURCE_OPTIONS }
+  }
+
+  @Get('unqualified-reasons')
+  getUnqualifiedReasons() {
+    return { code: 200, message: 'OK', data: UNQUALIFIED_REASON_OPTIONS }
+  }
+
+  @Get('lost-types')
+  getLostTypes() {
+    return { code: 200, message: 'OK', data: LOST_TYPE_OPTIONS }
   }
 
   @Get('regions')

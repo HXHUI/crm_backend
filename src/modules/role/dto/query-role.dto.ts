@@ -21,5 +21,5 @@ export class QueryRoleDto {
   @IsInt()
   @Min(1)
   @Transform(({ value }) => parseInt(value))
-  limit?: number = 10;
+  limit?: number = 50;
 }

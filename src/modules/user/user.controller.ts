@@ -24,7 +24,8 @@ export class UserController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createUser(@Body() createUserDto: CreateUserDto, @CurrentUser() user: any) {
-    const result = await this.userService.createUser(createUserDto);
+    const createdByUserId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const result = await this.userService.createUser(createUserDto, createdByUserId);
     return {
       code: 201,
       message: '创建用户成功',
@@ -36,7 +37,7 @@ export class UserController {
   @Get()
   async getUsers(
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+    @Query('limit') limit: number = 50,
     @Query('search') search?: string,
   ) {
     const result = await this.userService.getUsers(page, limit, search);

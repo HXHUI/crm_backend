@@ -19,7 +19,7 @@ export class RoleService {
   /**
    * 创建角色
    */
-  async create(createRoleDto: CreateRoleDto, tenantId: number): Promise<Role> {
+  async create(createRoleDto: CreateRoleDto, tenantId: number, memberId: number): Promise<Role> {
     const { name, description, isActive = true } = createRoleDto;
 
     // 检查角色名称是否重复
@@ -36,6 +36,7 @@ export class RoleService {
       description,
       isActive,
       tenantId,
+      createdBy: memberId,
     });
 
     return await this.roleRepository.save(role);
@@ -45,7 +46,7 @@ export class RoleService {
    * 查询角色列表
    */
   async findAll(queryDto: QueryRoleDto, tenantId: number) {
-    const { search, isActive, page = 1, limit = 10 } = queryDto;
+    const { search, isActive, page = 1, limit = 50 } = queryDto;
 
     const queryBuilder = this.roleRepository
       .createQueryBuilder('role')

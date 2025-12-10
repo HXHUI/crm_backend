@@ -47,5 +47,5 @@ export class QueryCustomerTagDto {
   page?: number = 1;
 
   @IsOptional()
-  limit?: number = 10;
+  limit?: number = 50;
 }

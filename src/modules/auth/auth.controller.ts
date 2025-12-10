@@ -74,7 +74,8 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard('jwt'))
   async getCurrentUser(@CurrentUser() user: any) {
-    const result = await this.authService.getCurrentUser(user.userId);
+    // 使用token中的memberId和tenantId来获取正确的租户信息
+    const result = await this.authService.getCurrentUser(user.userId, user.memberId, user.tenantId);
     return {
       code: 200,
       message: '获取用户信息成功',
@@ -106,6 +107,34 @@ export class AuthController {
     return {
       code: 200,
       message: '检查完成',
+      data: result
+    };
+  }
+
+  // GET /auth/tenants - 获取用户可访问的租户列表
+  @Get('tenants')
+  @UseGuards(AuthGuard('jwt'))
+  async getAccessibleTenants(@CurrentUser() user: any) {
+    const result = await this.authService.getAccessibleTenants(user.userId);
+    return {
+      code: 200,
+      message: '获取租户列表成功',
+      data: result
+    };
+  }
+
+  // POST /auth/switch-tenant - 切换租户
+  @Post('switch-tenant')
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  async switchTenant(
+    @Body() body: { tenantId: string | number },
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.authService.switchTenant(user.userId, body.tenantId);
+    return {
+      code: 200,
+      message: '切换租户成功',
       data: result
     };
   }

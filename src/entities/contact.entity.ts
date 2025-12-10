@@ -1,6 +1,7 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Customer } from './customer.entity';
+import { Member } from './member.entity';
 
 export enum ContactType {
   PRIMARY = 'primary',
@@ -55,7 +56,28 @@ export class Contact extends BaseEntity {
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 
+  // 层级关系：上级联系人
+  @Column({ name: 'parent_id', type: 'bigint', nullable: true, comment: '上级联系人ID' })
+  parentId?: number;
+
+  @ManyToOne(() => Contact, (contact) => contact.children, { nullable: true })
+  @JoinColumn({ name: 'parent_id' })
+  parent?: Contact;
+
+  @OneToMany(() => Contact, (contact) => contact.parent)
+  children?: Contact[];
+
   // 租户ID（冗余，便于隔离与过滤）
   @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
   tenantId?: number;
+
+  @Column({ name: 'department_id', type: 'bigint', nullable: true, comment: '部门ID' })
+  departmentId?: number;
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }

@@ -18,6 +18,20 @@ async function bootstrap() {
     console.log('📁 Created uploads directory:', uploadsPath);
   }
 
+  // 确保avatars目录存在
+  const avatarsPath = join(uploadsPath, 'avatars');
+  if (!existsSync(avatarsPath)) {
+    mkdirSync(avatarsPath, { recursive: true });
+    console.log('📁 Created avatars directory:', avatarsPath);
+  }
+
+  // 确保logos目录存在
+  const logosPath = join(uploadsPath, 'logos');
+  if (!existsSync(logosPath)) {
+    mkdirSync(logosPath, { recursive: true });
+    console.log('📁 Created logos directory:', logosPath);
+  }
+
   // 配置静态文件服务
   app.useStaticAssets(uploadsPath, {
     prefix: '/uploads',

@@ -90,4 +90,14 @@ export class Opportunity extends BaseEntity {
   // 租户ID
   @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
   tenantId?: number;
+
+  @Column({ name: 'department_id', type: 'bigint', nullable: true, comment: '部门ID' })
+  departmentId?: number;
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }

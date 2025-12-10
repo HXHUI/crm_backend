@@ -4,6 +4,7 @@ import { Member } from './member.entity';
 import { Contact } from './contact.entity';
 import { Opportunity } from './opportunity.entity';
 import { Activity } from './activity.entity';
+import { CustomerRequirement } from './customer-requirement.entity';
 
 export enum CustomerStatus {
   LEAD = 'lead',
@@ -17,11 +18,6 @@ export enum CustomerStatus {
 export enum CustomerType {
   INDIVIDUAL = 'individual',
   COMPANY = 'company',
-}
-
-export enum CustomerPoolType {
-  PUBLIC = 'public',    // 公海
-  PRIVATE = 'private',  // 私海
 }
 
 @Entity('customers')
@@ -72,15 +68,6 @@ export class Customer extends BaseEntity {
   @Column({ nullable: true, comment: '客户等级' })
   level?: string;
 
-  @Column({
-    name: 'pool_type',
-    type: 'enum',
-    enum: CustomerPoolType,
-    default: CustomerPoolType.PRIVATE,
-    comment: '客户池类型',
-  })
-  poolType: CustomerPoolType;
-
   // 地址字段
   @Column({ nullable: true, comment: '省份' })
   province?: string;
@@ -102,11 +89,17 @@ export class Customer extends BaseEntity {
   @JoinColumn({ name: 'ownerId' })
   owner: Member;
 
+  @Column({ name: 'department_id', type: 'bigint', nullable: true, comment: '部门ID' })
+  departmentId?: number;
+
   @OneToMany(() => Contact, (contact) => contact.customer)
   contacts: Contact[];
 
   @OneToMany(() => Opportunity, (opportunity) => opportunity.customer)
   opportunities: Opportunity[];
+
+  @OneToMany(() => CustomerRequirement, (requirement) => requirement.customer)
+  requirements: CustomerRequirement[];
 
   // 活动不再直接关联客户，改为通过 relatedToType/relatedToId 关联
   // 保留占位属性以兼容旧代码（不映射关系）
@@ -115,4 +108,11 @@ export class Customer extends BaseEntity {
   // 租户ID
   @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
   tenantId?: number;
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }

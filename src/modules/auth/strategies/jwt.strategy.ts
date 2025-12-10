@@ -22,10 +22,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET'),
+      passReqToCallback: true, // 允许在 validate 中访问 request 对象
     });
   }
 
-  async validate(payload: any) {
+  async validate(req: any, payload: any) {
     const { sub: userId, memberId, tenantId } = payload;
 
     // 暂时禁用Redis检查，避免Redis连接问题
@@ -67,12 +68,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     console.log('JWT validate - userId:', userId, 'tenantId:', actualTenantId, 'memberId:', memberId);
 
+    // 从请求头获取当前部门ID
+    const departmentIdHeader = req?.headers?.['x-current-department-id'];
+    const currentDepartmentId = departmentIdHeader 
+      ? (typeof departmentIdHeader === 'string' ? parseInt(departmentIdHeader, 10) : departmentIdHeader)
+      : undefined;
+
     return {
       userId,
       user,
       member,
       memberId,
       tenantId: actualTenantId,
+      currentDepartmentId,
     };
   }
 }

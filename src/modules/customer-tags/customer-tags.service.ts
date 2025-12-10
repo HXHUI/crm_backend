@@ -31,7 +31,7 @@ export class CustomerTagsService {
 
   async findAll(queryDto: QueryCustomerTagDto, tenantId: number) {
     try {
-      const { name, color, page = 1, limit = 10 } = queryDto;
+      const { name, color, page = 1, limit = 50 } = queryDto;
       const skip = (page - 1) * limit;
 
       const queryBuilder = this.customerTagRepository

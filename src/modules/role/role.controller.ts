@@ -33,7 +33,8 @@ export class RoleController {
     @CurrentUser() user: any,
   ) {
     const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
-    const role = await this.roleService.create(createRoleDto, tenantId);
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const role = await this.roleService.create(createRoleDto, tenantId, memberId);
     return {
       code: 201,
       message: '创建角色成功',

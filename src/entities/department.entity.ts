@@ -50,4 +50,11 @@ export class Department extends BaseEntity {
 
   @OneToMany(() => MemberDepartment, (memberDept) => memberDept.department)
   memberDepartments: MemberDepartment[];
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }

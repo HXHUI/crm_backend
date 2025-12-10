@@ -171,6 +171,7 @@ export class AuthService {
         name: tenantName,
         ownerId: savedUser.id,
         status: TenantStatus.ACTIVE,
+        createdBy: savedUser.id, // 租户的创建者就是所有者
       });
 
       const savedTenant = await this.tenantRepository.save(tenant);
@@ -225,7 +226,14 @@ export class AuthService {
         tenant: {
           id: savedTenant.id,
           name: savedTenant.name,
+          description: savedTenant.description,
+          logo: savedTenant.logo,
           status: savedTenant.status,
+          level: savedTenant.level,
+          parentId: savedTenant.parentId,
+          ownerId: savedTenant.ownerId,
+          config: savedTenant.config,
+          defaultTaxRate: savedTenant.defaultTaxRate,
           createdAt: savedTenant.createdAt,
           updatedAt: savedTenant.updatedAt,
         },
@@ -279,6 +287,7 @@ export class AuthService {
       description,
       ownerId: ownerIdNum,
       status: TenantStatus.ACTIVE,
+      createdBy: ownerIdNum, // 租户的创建者就是所有者
     });
 
     const savedTenant = await this.tenantRepository.save(tenant);
@@ -372,7 +381,7 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(userId: string | number) {
+  async getCurrentUser(userId: string | number, memberId?: string | number, tenantId?: string | number) {
     const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     const user = await this.userRepository.findOne({
       where: { id: userIdNum },
@@ -383,11 +392,53 @@ export class AuthService {
       throw new UnauthorizedException('用户不存在');
     }
 
-    // 找到用户当前活跃的成员记录
-    const activeMember = user.members?.find(member => member.status === 'active');
+    // 如果提供了memberId，使用memberId查找成员
+    let activeMember = null;
+    if (memberId) {
+      const memberIdNum = typeof memberId === 'string' ? parseInt(memberId, 10) : memberId;
+      activeMember = user.members?.find(
+        member => member.id === memberIdNum && member.status === 'active'
+      );
+      
+      // 如果没找到，直接从数据库查询（可能关系没有加载）
+      if (!activeMember) {
+        activeMember = await this.memberRepository.findOne({
+          where: { id: memberIdNum, userId: userIdNum, status: MemberStatus.ACTIVE },
+          relations: ['tenant'],
+        });
+      }
+    } else if (tenantId) {
+      // 如果提供了tenantId但没有memberId，使用tenantId查找成员
+      const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
+      activeMember = user.members?.find(
+        member => member.tenantId === tenantIdNum && member.status === MemberStatus.ACTIVE
+      );
+      
+      // 如果没找到，直接从数据库查询
+      if (!activeMember) {
+        activeMember = await this.memberRepository.findOne({
+          where: { userId: userIdNum, tenantId: tenantIdNum, status: MemberStatus.ACTIVE },
+          relations: ['tenant'],
+        });
+      }
+    } else {
+      // 如果都没有提供，使用第一个活跃的成员记录（向后兼容）
+      activeMember = user.members?.find(member => member.status === 'active');
+    }
     
     if (!activeMember) {
       throw new UnauthorizedException('用户没有活跃的租户成员记录');
+    }
+
+    // 确保租户信息已加载
+    if (!activeMember.tenant) {
+      const tenant = await this.tenantRepository.findOne({
+        where: { id: activeMember.tenantId },
+      });
+      if (!tenant) {
+        throw new UnauthorizedException('租户不存在');
+      }
+      activeMember.tenant = tenant;
     }
 
     return {
@@ -414,10 +465,136 @@ export class AuthService {
       tenant: {
         id: activeMember.tenant.id,
         name: activeMember.tenant.name,
+        description: activeMember.tenant.description,
+        logo: activeMember.tenant.logo,
         status: activeMember.tenant.status,
+        level: activeMember.tenant.level,
+        parentId: activeMember.tenant.parentId,
         ownerId: activeMember.tenant.ownerId,
+        config: activeMember.tenant.config,
+        defaultTaxRate: activeMember.tenant.defaultTaxRate,
         createdAt: activeMember.tenant.createdAt,
         updatedAt: activeMember.tenant.updatedAt,
+      },
+    };
+  }
+
+  // 获取用户可访问的租户列表
+  async getAccessibleTenants(userId: string | number) {
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    const user = await this.userRepository.findOne({
+      where: { id: userIdNum },
+      relations: ['members', 'members.tenant', 'members.tenant.parent'],
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    // 获取用户所有活跃的成员记录及其租户
+    const activeMembers = user.members?.filter(member => member.status === 'active') || [];
+    
+    const tenants = activeMembers.map(member => ({
+      id: member.tenant.id,
+      name: member.tenant.name,
+      description: member.tenant.description,
+      logo: member.tenant.logo,
+      status: member.tenant.status,
+      level: member.tenant.level,
+      parentId: member.tenant.parentId,
+      parentName: member.tenant.parent?.name || null,
+      ownerId: member.tenant.ownerId,
+      memberId: member.id,
+      isCurrent: false, // 这个字段由前端根据当前租户ID设置
+      createdAt: member.tenant.createdAt,
+      updatedAt: member.tenant.updatedAt,
+    }));
+
+    return tenants;
+  }
+
+  // 切换租户
+  async switchTenant(userId: string | number, tenantId: string | number) {
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
+
+    const user = await this.userRepository.findOne({
+      where: { id: userIdNum },
+      relations: ['members', 'members.tenant'],
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    // 检查用户是否属于该租户
+    const member = user.members?.find(
+      (m) => m.tenantId === tenantIdNum && m.status === 'active',
+    );
+
+    if (!member) {
+      throw new UnauthorizedException('用户不属于该租户');
+    }
+
+    // 获取租户信息
+    const tenant = await this.tenantRepository.findOne({
+      where: { id: tenantIdNum },
+    });
+
+    if (!tenant) {
+      throw new UnauthorizedException('租户不存在');
+    }
+
+    // 生成新的JWT token，包含新的memberId和tenantId
+    const payload = {
+      sub: userIdNum,
+      username: user.username,
+      memberId: member.id,
+      tenantId: tenantIdNum,
+    };
+
+    const token = this.jwtService.sign(payload);
+
+    // 更新Redis中的token（如果Redis可用）
+    try {
+      await this.redisService.set(`token:${userIdNum}`, token, 7 * 24 * 60 * 60);
+    } catch (redisError) {
+      console.warn('Redis连接失败，跳过token更新:', redisError.message);
+    }
+
+    return {
+      access_token: token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        avatar: user.avatar,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+      member: {
+        id: member.id,
+        userId: member.userId,
+        tenantId: member.tenantId,
+        status: member.status,
+        nickname: member.nickname,
+        position: member.position,
+        createdAt: member.createdAt,
+        updatedAt: member.updatedAt,
+      },
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        description: tenant.description,
+        logo: tenant.logo,
+        status: tenant.status,
+        level: tenant.level,
+        parentId: tenant.parentId,
+        ownerId: tenant.ownerId,
+        createdAt: tenant.createdAt,
+        updatedAt: tenant.updatedAt,
       },
     };
   }

@@ -8,6 +8,11 @@ import { Member } from './member.entity';
 import { OrderItem } from './order-item.entity';
 
 export enum OrderStatus {
+  DRAFT = 'draft',             // 草稿
+  PENDING_APPROVAL = 'pending_approval', // 审批中
+  APPROVED = 'approved',       // 已审批通过
+  ACTIVE = 'active',          // 已生效
+  REJECTED = 'rejected',       // 已拒绝（审批拒绝）
   PENDING = 'pending',         // 待处理
   CONFIRMED = 'confirmed',     // 已确认
   PROCESSING = 'processing',   // 处理中
@@ -60,9 +65,29 @@ export class Order extends BaseEntity {
   totalAmount: number;
 
   @Column({
+    name: 'total_amount_excl_tax',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    comment: '不含税总金额',
+  })
+  totalAmountExclTax: number;
+
+  @Column({
+    name: 'tax_amount',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    comment: '税金合计',
+  })
+  taxAmount: number;
+
+  @Column({
     type: 'enum',
     enum: OrderStatus,
-    default: OrderStatus.PENDING,
+    default: OrderStatus.DRAFT,
     comment: '订单状态',
   })
   status: OrderStatus;
@@ -83,5 +108,15 @@ export class Order extends BaseEntity {
   // 租户ID
   @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
   tenantId?: number;
+
+  @Column({ name: 'department_id', type: 'bigint', nullable: true, comment: '部门ID' })
+  departmentId?: number;
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }
 

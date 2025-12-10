@@ -5,6 +5,7 @@ import { Department } from '../../entities/department.entity';
 import { Member } from '../../entities/member.entity';
 import { User } from '../../entities/user.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { MemberDepartment } from '../../entities/member-department.entity';
 
 export interface CreateDepartmentDto {
   name: string;
@@ -31,6 +32,8 @@ export class DepartmentService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Tenant)
     private readonly tenantRepository: Repository<Tenant>,
+    @InjectRepository(MemberDepartment)
+    private readonly memberDepartmentRepository: Repository<MemberDepartment>,
   ) {}
 
   async getDepartmentTree(tenantId: number) {
@@ -140,7 +143,7 @@ export class DepartmentService {
     return department;
   }
 
-  async createDepartment(createDepartmentDto: CreateDepartmentDto, tenantId: number) {
+  async createDepartment(createDepartmentDto: CreateDepartmentDto, tenantId: number, memberId: number) {
     console.log('Creating department:', createDepartmentDto, 'tenantId:', tenantId);
     
     // 验证tenantId
@@ -149,7 +152,22 @@ export class DepartmentService {
     }
     
     try {
-      const { name, parentId, description, managerId } = createDepartmentDto;
+      let { name, parentId, description, managerId } = createDepartmentDto;
+
+      // 处理 'root' 值或字符串 'null'，将其转换为 null（表示在租户根节点下创建）
+      // 兼容前端可能发送的字符串 'root' 或 'null'
+      if (parentId === null || parentId === undefined || 
+          (typeof parentId === 'string' && (parentId === 'root' || parentId === 'null'))) {
+        parentId = null;
+      } else if (typeof parentId === 'string') {
+        // 如果是字符串形式的数字，转换为数字
+        const parsedId = parseInt(parentId, 10);
+        if (!isNaN(parsedId)) {
+          parentId = parsedId;
+        } else {
+          parentId = null;
+        }
+      }
 
       // 检查父部门是否存在
       if (parentId) {
@@ -189,7 +207,8 @@ export class DepartmentService {
         description: description || null,
         managerId: managerId || null,
         tenantId,
-        sort: 0
+        sort: 0,
+        createdBy: memberId,
       });
 
       console.log('Department entity created:', department);
@@ -214,7 +233,22 @@ export class DepartmentService {
       throw new NotFoundException('部门不存在');
     }
 
-    const { name, parentId, description, managerId } = updateDepartmentDto;
+    let { name, parentId, description, managerId } = updateDepartmentDto;
+
+    // 处理 'root' 值或字符串 'null'，将其转换为 null（表示在租户根节点下）
+    // 兼容前端可能发送的字符串 'root' 或 'null'
+    if (parentId === null || parentId === undefined || 
+        (typeof parentId === 'string' && (parentId === 'root' || parentId === 'null'))) {
+      parentId = null;
+    } else if (typeof parentId === 'string') {
+      // 如果是字符串形式的数字，转换为数字
+      const parsedId = parseInt(parentId, 10);
+      if (!isNaN(parsedId)) {
+        parentId = parsedId;
+      } else {
+        parentId = null;
+      }
+    }
 
     // 检查父部门是否存在且不能是自己
     if (parentId && parentId !== id) {
@@ -263,9 +297,15 @@ export class DepartmentService {
   }
 
 
-  async getDepartmentMembers(departmentId: number, tenantId: number, page: number, limit: number, search?: string) {
-    // 如果是租户ID，获取所有成员
-    if (departmentId === tenantId) {
+  async getDepartmentMembers(
+    departmentId: number | 'root',
+    tenantId: number,
+    page: number,
+    limit: number,
+    search?: string,
+  ) {
+    // 如果是 'root'，直接返回所有成员
+    if (departmentId === 'root') {
       const queryBuilder = this.memberRepository.createQueryBuilder('member')
         .leftJoinAndSelect('member.user', 'user')
         .leftJoinAndSelect('member.departments', 'department')
@@ -294,13 +334,61 @@ export class DepartmentService {
       };
     }
 
+    // 普通部门，先检查部门是否存在
+    const targetDepartmentId =
+      typeof departmentId === 'number' ? departmentId : parseInt(departmentId as string, 10);
+
+    if (Number.isNaN(targetDepartmentId)) {
+      throw new NotFoundException('部门不存在');
+    }
+
+    // 检查部门是否存在，避免将租户ID误判为部门ID
+    const department = await this.departmentRepository.findOne({
+      where: { id: targetDepartmentId, tenantId }
+    });
+
+    // 如果部门不存在，且 departmentId 等于 tenantId，则认为是租户根节点
+    if (!department && targetDepartmentId === tenantId) {
+      const queryBuilder = this.memberRepository.createQueryBuilder('member')
+        .leftJoinAndSelect('member.user', 'user')
+        .leftJoinAndSelect('member.departments', 'department')
+        .leftJoinAndSelect('member.memberRoles', 'memberRole')
+        .leftJoinAndSelect('memberRole.role', 'role')
+        .where('member.tenantId = :tenantId', { tenantId });
+
+      if (search) {
+        queryBuilder.andWhere(
+          'user.username LIKE :search OR user.email LIKE :search OR user.phone LIKE :search',
+          { search: `%${search}%` }
+        );
+      }
+
+      const [members, total] = await queryBuilder
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getManyAndCount();
+
+      return {
+        members,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      };
+    }
+
+    // 如果部门不存在，抛出异常
+    if (!department) {
+      throw new NotFoundException('部门不存在');
+    }
+
     // 普通部门，获取部门成员
     const queryBuilder = this.memberRepository.createQueryBuilder('member')
       .leftJoinAndSelect('member.user', 'user')
       .leftJoinAndSelect('member.departments', 'department')
       .leftJoinAndSelect('member.memberRoles', 'memberRole')
       .leftJoinAndSelect('memberRole.role', 'role')
-      .where('department.id = :departmentId', { departmentId })
+      .where('department.id = :departmentId', { departmentId: targetDepartmentId })
       .andWhere('member.tenantId = :tenantId', { tenantId });
 
     if (search) {
@@ -360,6 +448,62 @@ export class DepartmentService {
     member.position = position || member.position;
 
     return await this.memberRepository.save(member);
+  }
+
+  async batchAddDepartmentMembers(departmentId: number, memberIds: number[], position: string, isManager: boolean, tenantId: number) {
+    // 检查部门是否存在
+    const department = await this.departmentRepository.findOne({
+      where: { id: departmentId, tenantId }
+    });
+
+    if (!department) {
+      throw new NotFoundException('部门不存在');
+    }
+
+    // 批量获取成员
+    const members = await this.memberRepository.find({
+      where: memberIds.map(id => ({ id, tenantId })),
+      relations: ['departments']
+    });
+
+    if (members.length === 0) {
+      throw new NotFoundException('没有找到有效的成员');
+    }
+
+    // 检查哪些成员已经在部门中
+    const existingMembers = await this.memberRepository
+      .createQueryBuilder('member')
+      .leftJoin('member.departments', 'department')
+      .where('member.id IN (:...memberIds)', { memberIds })
+      .andWhere('department.id = :departmentId', { departmentId })
+      .select('member.id', 'id')
+      .getRawMany();
+
+    const existingIds = new Set(existingMembers.map((m: any) => m.member_id || m.id));
+
+    // 过滤出不在部门中的成员
+    const membersToAdd = members.filter(m => !existingIds.has(m.id));
+
+    if (membersToAdd.length === 0) {
+      throw new ForbiddenException('所有成员都已在部门中');
+    }
+
+    // 批量添加成员到部门
+    for (const member of membersToAdd) {
+      member.departments = [...(member.departments || []), department];
+      if (position) {
+        member.position = position;
+      }
+    }
+
+    await this.memberRepository.save(membersToAdd);
+
+    return {
+      success: membersToAdd.length,
+      failed: members.length - membersToAdd.length,
+      skipped: existingIds.size,
+      members: membersToAdd
+    };
   }
 
   async removeDepartmentMember(departmentId: number, memberId: number, tenantId: number) {
@@ -443,5 +587,34 @@ export class DepartmentService {
     }
 
     return false;
+  }
+
+  /**
+   * 获取成员的部门列表
+   * @param memberId 成员ID
+   * @param tenantId 租户ID（用于验证）
+   */
+  async getMemberDepartments(memberId: number, tenantId: number): Promise<Department[]> {
+    // 验证成员是否存在且属于该租户
+    const member = await this.memberRepository.findOne({
+      where: { id: memberId, tenantId }
+    });
+
+    if (!member) {
+      throw new NotFoundException('成员不存在');
+    }
+
+    // 通过 MemberDepartment 关联表查询成员的部门
+    const memberDepartments = await this.memberDepartmentRepository.find({
+      where: { memberId },
+      relations: ['department'],
+    });
+
+    // 提取部门信息并过滤掉已删除的部门
+    const departments = memberDepartments
+      .map(md => md.department)
+      .filter(dept => dept && dept.tenantId === tenantId && !dept.deletedAt);
+
+    return departments;
   }
 }

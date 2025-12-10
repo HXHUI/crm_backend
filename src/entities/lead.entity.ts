@@ -20,12 +20,15 @@ export class Lead {
   @Column({ name: 'tenant_id', type: 'bigint', comment: '租户ID' })
   tenantId: number;
 
-  @Column({ name: 'owner_id', type: 'bigint', comment: '负责人ID' })
-  ownerId: number;
+  @Column({ name: 'owner_id', type: 'bigint', nullable: true, comment: '负责人ID' })
+  ownerId: number | null;
 
   @ManyToOne(() => Member, { eager: false })
   @JoinColumn({ name: 'owner_id' })
   owner?: Member;
+
+  @Column({ name: 'department_id', type: 'bigint', nullable: true, comment: '部门ID' })
+  departmentId?: number;
 
   @Column({ nullable: true })
   name?: string;
@@ -85,6 +88,26 @@ export class Lead {
 
   @Column({ name: 'address_detail', nullable: true, comment: '详细地址' })
   addressDetail?: string;
+
+  // 流失分析字段
+  @Column({ name: 'unqualified_reason', nullable: true, comment: '不合格原因（字典key）' })
+  unqualifiedReason?: string;
+
+  @Column({ name: 'unqualified_at', type: 'datetime', nullable: true, comment: '不合格时间' })
+  unqualifiedAt?: Date;
+
+  @Column({ name: 'lost_stage', nullable: true, comment: '流失阶段' })
+  lostStage?: string;
+
+  @Column({ name: 'lost_type', nullable: true, comment: '流失类型（字典key）' })
+  lostType?: string;
+
+  @Column({ name: 'created_by', type: 'bigint', nullable: true, comment: '创建者ID（成员ID）' })
+  createdBy?: number;
+
+  @ManyToOne(() => Member, { nullable: true })
+  @JoinColumn({ name: 'created_by' })
+  creator?: Member;
 }
 
 

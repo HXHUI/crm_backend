@@ -25,7 +25,10 @@ export class QuotesController {
   async createQuote(@Body() createQuoteDto: CreateQuoteDto, @CurrentUser() user: any) {
     const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
     const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
-    const quote = await this.quotesService.createQuote(createQuoteDto, memberId, tenantId);
+    const departmentId = user.currentDepartmentId 
+      ? (typeof user.currentDepartmentId === 'string' ? parseInt(user.currentDepartmentId, 10) : user.currentDepartmentId)
+      : undefined;
+    const quote = await this.quotesService.createQuote(createQuoteDto, memberId, tenantId, departmentId);
     return {
       code: 201,
       message: '创建报价成功',
@@ -85,6 +88,40 @@ export class QuotesController {
     return {
       code: 200,
       message: '删除报价成功'
+    };
+  }
+
+  @Post(':id/submit-approval')
+  @HttpCode(HttpStatus.OK)
+  async submitApproval(
+    @Param('id') id: string,
+    @Body() body: { templateId: number; submitComment?: string },
+    @CurrentUser() user: any,
+  ) {
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const instance = await this.quotesService.submitApproval(
+      parseInt(id, 10),
+      body.templateId,
+      body.submitComment || '',
+      memberId,
+      tenantId,
+    );
+    return {
+      code: 200,
+      message: '提交审批成功',
+      data: instance,
+    };
+  }
+
+  @Get(':id/approval-instance')
+  async getApprovalInstance(@Param('id') id: string, @CurrentUser() user: any) {
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const instance = await this.quotesService.getApprovalInstance(parseInt(id, 10), tenantId);
+    return {
+      code: 200,
+      message: '获取审批实例成功',
+      data: instance,
     };
   }
 }
