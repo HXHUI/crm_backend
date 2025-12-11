@@ -36,6 +36,7 @@ import { BusinessInfoModule } from './modules/business-info/business-info.module
 import { TianyanchaModule } from './modules/tianyancha/tianyancha.module';
 import { DictionaryModule } from './modules/dictionary/dictionary.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 // 健康检查
 import { HealthController } from './common/health/health.controller';
@@ -91,6 +92,7 @@ import * as entities from './entities';
     TianyanchaModule,
     DictionaryModule,
     WorkflowModule,
+    NotificationsModule,
   ],
   controllers: [
     HealthController,

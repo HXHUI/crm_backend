@@ -14,6 +14,10 @@ import { Quote, QuoteStatus } from '../../entities/quote.entity';
 import { Contract, ContractStatus } from '../../entities/contract.entity';
 import { Order, OrderStatus } from '../../entities/order.entity';
 import { BusinessType } from '../../entities/workflow-template.entity';
+import { Member } from '../../entities/member.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationHelper } from '../notifications/utils/notification-helper';
+import { NotificationType } from '../../entities/notification.entity';
 
 @Injectable()
 export class WorkflowInstanceService {
@@ -34,8 +38,11 @@ export class WorkflowInstanceService {
     private readonly contractRepository: Repository<Contract>,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    @InjectRepository(Member)
+    private readonly memberRepository: Repository<Member>,
     private readonly approverResolver: WorkflowApproverResolverService,
     private readonly dataSource: DataSource,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -116,11 +123,72 @@ export class WorkflowInstanceService {
 
       await manager.save(records);
 
-      return await manager.findOne(WorkflowInstance, {
+      const result = await manager.findOne(WorkflowInstance, {
         where: { id: savedInstance.id },
-        relations: ['template', 'initiator', 'records'],
+        relations: ['template', 'initiator', 'initiator.user', 'records'],
       });
+
+      // 发送通知给第一个节点的审批人（在事务外执行）
+      if (result) {
+        this.sendSubmitNotification(result, approverIds, tenantId).catch((error) => {
+          this.logger.error('发送提交审批通知失败', error);
+        });
+      }
+
+      return result;
     });
+  }
+
+  /**
+   * 发送提交审批通知
+   */
+  private async sendSubmitNotification(
+    instance: WorkflowInstance,
+    approverMemberIds: number[],
+    tenantId: number,
+  ): Promise<void> {
+    try {
+      // 获取发起人信息
+      const initiator = instance.initiator;
+      const initiatorName = initiator?.user?.username || initiator?.nickname || '系统用户';
+
+      // 获取审批人的userId
+      const approverUserIds = await NotificationHelper.getUserIdsFromMemberIds(
+        this.memberRepository,
+        approverMemberIds,
+      );
+
+      if (approverUserIds.length === 0) {
+        return;
+      }
+
+      // 格式化通知内容
+      const businessTypeName = NotificationHelper.formatBusinessTypeName(instance.businessType);
+      const { title, content } = NotificationHelper.formatWorkflowNotification(
+        'submit',
+        instance.businessType,
+        initiatorName,
+      );
+
+      // 批量创建通知
+      await this.notificationsService.createBatch(
+        approverUserIds,
+        {
+          type: NotificationType.WORKFLOW,
+          title,
+          content,
+          metadata: {
+            businessType: instance.businessType,
+            businessId: instance.businessId,
+            instanceId: instance.id,
+            link: `/workflow/instances/${instance.id}`,
+          },
+        },
+        tenantId,
+      );
+    } catch (error) {
+      this.logger.error('发送提交审批通知失败', error);
+    }
   }
 
   /**
@@ -414,8 +482,116 @@ export class WorkflowInstanceService {
         }
       }
 
-      return await this.findInstanceById(instanceId, tenantId);
+      const result = await this.findInstanceById(instanceId, tenantId);
+
+      // 发送审批通过通知（在事务外执行）
+      this.sendApproveNotification(result, memberId, tenantId).catch((error) => {
+        this.logger.error('发送审批通过通知失败', error);
+      });
+
+      return result;
     });
+  }
+
+  /**
+   * 发送审批通过通知
+   */
+  private async sendApproveNotification(
+    instance: WorkflowInstance,
+    approverMemberId: number,
+    tenantId: number,
+  ): Promise<void> {
+    try {
+      // 获取审批人信息
+      const approver = await this.memberRepository.findOne({
+        where: { id: approverMemberId },
+        relations: ['user'],
+      });
+      const approverName = approver?.user?.username || approver?.nickname || '审批人';
+
+      if (instance.status === InstanceStatus.APPROVED) {
+        // 审批完成，通知发起人
+        const initiatorUserId = await NotificationHelper.getUserIdFromMemberId(
+          this.memberRepository,
+          instance.initiatorId,
+        );
+
+        if (initiatorUserId) {
+          const { title, content } = NotificationHelper.formatWorkflowNotification(
+            'approve_complete',
+            instance.businessType,
+            approverName,
+          );
+
+          await this.notificationsService.create(
+            {
+              receiverId: initiatorUserId,
+              type: NotificationType.WORKFLOW,
+              title,
+              content,
+              metadata: {
+                businessType: instance.businessType,
+                businessId: instance.businessId,
+                instanceId: instance.id,
+                link: `/workflow/instances/${instance.id}`,
+              },
+            },
+            tenantId,
+          );
+        }
+      } else if (instance.status === InstanceStatus.PENDING && instance.currentNodeId) {
+        // 还有下一节点，通知下一节点的审批人
+        const nextNodeRecords = await this.recordRepository.find({
+          where: {
+            instanceId: instance.id,
+            nodeId: instance.currentNodeId,
+            action: RecordAction.PENDING,
+            tenantId,
+          },
+        });
+
+        if (nextNodeRecords.length > 0) {
+          const nextApproverMemberIds = nextNodeRecords.map((r) => r.approverId);
+          const nextApproverUserIds = await NotificationHelper.getUserIdsFromMemberIds(
+            this.memberRepository,
+            nextApproverMemberIds,
+          );
+
+          if (nextApproverUserIds.length > 0) {
+            // 获取下一节点名称
+            const nextNode = instance.template?.nodes?.find(
+              (n) => n.id === instance.currentNodeId,
+            );
+            const nextNodeName = nextNode?.name || '下一节点';
+
+            const { title, content } = NotificationHelper.formatWorkflowNotification(
+              'approve',
+              instance.businessType,
+              approverName,
+              { nextNodeName },
+            );
+
+            await this.notificationsService.createBatch(
+              nextApproverUserIds,
+              {
+                type: NotificationType.WORKFLOW,
+                title,
+                content,
+                metadata: {
+                  businessType: instance.businessType,
+                  businessId: instance.businessId,
+                  instanceId: instance.id,
+                  link: `/workflow/instances/${instance.id}`,
+                },
+              },
+              tenantId,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('发送审批通过通知失败', error);
+    }
   }
 
   /**
@@ -457,8 +633,71 @@ export class WorkflowInstanceService {
       // 更新业务对象状态
       await this.updateBusinessStatus(instance, InstanceStatus.REJECTED, manager);
 
-      return await this.findInstanceById(instanceId, tenantId);
+      const result = await this.findInstanceById(instanceId, tenantId);
+
+      // 发送拒绝通知给发起人（在事务外执行）
+      this.sendRejectNotification(result, memberId, tenantId, actionDto.comment).catch((error) => {
+        this.logger.error('发送拒绝审批通知失败', error);
+      });
+
+      return result;
     });
+  }
+
+  /**
+   * 发送拒绝审批通知
+   */
+  private async sendRejectNotification(
+    instance: WorkflowInstance,
+    approverMemberId: number,
+    tenantId: number,
+    comment?: string,
+  ): Promise<void> {
+    try {
+      // 获取审批人信息
+      const approver = await this.memberRepository.findOne({
+        where: { id: approverMemberId },
+        relations: ['user'],
+      });
+      const approverName = approver?.user?.username || approver?.nickname || '审批人';
+
+      // 获取发起人userId
+      const initiatorUserId = await NotificationHelper.getUserIdFromMemberId(
+        this.memberRepository,
+        instance.initiatorId,
+      );
+
+      if (!initiatorUserId) {
+        return;
+      }
+
+      // 格式化通知内容
+      const { title, content } = NotificationHelper.formatWorkflowNotification(
+        'reject',
+        instance.businessType,
+        approverName,
+        { comment },
+      );
+
+      // 创建通知
+      await this.notificationsService.create(
+        {
+          receiverId: initiatorUserId,
+          type: NotificationType.WORKFLOW,
+          title,
+          content,
+          metadata: {
+            businessType: instance.businessType,
+            businessId: instance.businessId,
+            instanceId: instance.id,
+            link: `/workflow/instances/${instance.id}`,
+          },
+        },
+        tenantId,
+      );
+    } catch (error) {
+      this.logger.error('发送拒绝审批通知失败', error);
+    }
   }
 
   /**
@@ -513,8 +752,72 @@ export class WorkflowInstanceService {
 
       await manager.save(newRecord);
 
-      return await this.findInstanceById(instanceId, tenantId);
+      const result = await this.findInstanceById(instanceId, tenantId);
+
+      // 发送转办通知给转办对象（在事务外执行）
+      this.sendTransferNotification(result, memberId, transferDto.transferredTo, tenantId).catch(
+        (error) => {
+          this.logger.error('发送转办通知失败', error);
+        },
+      );
+
+      return result;
     });
+  }
+
+  /**
+   * 发送转办通知
+   */
+  private async sendTransferNotification(
+    instance: WorkflowInstance,
+    fromMemberId: number,
+    toMemberId: number,
+    tenantId: number,
+  ): Promise<void> {
+    try {
+      // 获取原审批人信息
+      const fromMember = await this.memberRepository.findOne({
+        where: { id: fromMemberId },
+        relations: ['user'],
+      });
+      const fromMemberName = fromMember?.user?.username || fromMember?.nickname || '审批人';
+
+      // 获取转办对象userId
+      const toUserId = await NotificationHelper.getUserIdFromMemberId(
+        this.memberRepository,
+        toMemberId,
+      );
+
+      if (!toUserId) {
+        return;
+      }
+
+      // 格式化通知内容
+      const { title, content } = NotificationHelper.formatWorkflowNotification(
+        'transfer',
+        instance.businessType,
+        fromMemberName,
+      );
+
+      // 创建通知
+      await this.notificationsService.create(
+        {
+          receiverId: toUserId,
+          type: NotificationType.WORKFLOW,
+          title,
+          content,
+          metadata: {
+            businessType: instance.businessType,
+            businessId: instance.businessId,
+            instanceId: instance.id,
+            link: `/workflow/instances/${instance.id}`,
+          },
+        },
+        tenantId,
+      );
+    } catch (error) {
+      this.logger.error('发送转办通知失败', error);
+    }
   }
 
   /**
@@ -578,8 +881,72 @@ export class WorkflowInstanceService {
 
       await manager.save(newRecords);
 
-      return await this.findInstanceById(instanceId, tenantId);
+      const result = await this.findInstanceById(instanceId, tenantId);
+
+      // 发送加签通知给加签对象（在事务外执行）
+      this.sendAddSignNotification(result, memberId, addSignDto.approverIds, tenantId).catch(
+        (error) => {
+          this.logger.error('发送加签通知失败', error);
+        },
+      );
+
+      return result;
     });
+  }
+
+  /**
+   * 发送加签通知
+   */
+  private async sendAddSignNotification(
+    instance: WorkflowInstance,
+    fromMemberId: number,
+    toMemberIds: number[],
+    tenantId: number,
+  ): Promise<void> {
+    try {
+      // 获取审批人信息
+      const fromMember = await this.memberRepository.findOne({
+        where: { id: fromMemberId },
+        relations: ['user'],
+      });
+      const fromMemberName = fromMember?.user?.username || fromMember?.nickname || '审批人';
+
+      // 获取加签对象userId
+      const toUserIds = await NotificationHelper.getUserIdsFromMemberIds(
+        this.memberRepository,
+        toMemberIds,
+      );
+
+      if (toUserIds.length === 0) {
+        return;
+      }
+
+      // 格式化通知内容
+      const { title, content } = NotificationHelper.formatWorkflowNotification(
+        'add_sign',
+        instance.businessType,
+        fromMemberName,
+      );
+
+      // 批量创建通知
+      await this.notificationsService.createBatch(
+        toUserIds,
+        {
+          type: NotificationType.WORKFLOW,
+          title,
+          content,
+          metadata: {
+            businessType: instance.businessType,
+            businessId: instance.businessId,
+            instanceId: instance.id,
+            link: `/workflow/instances/${instance.id}`,
+          },
+        },
+        tenantId,
+      );
+    } catch (error) {
+      this.logger.error('发送加签通知失败', error);
+    }
   }
 
   /**
@@ -633,8 +1000,73 @@ export class WorkflowInstanceService {
       instance.completedAt = new Date();
       await manager.save(instance);
 
-      return await this.findInstanceById(instanceId, tenantId);
+      const result = await this.findInstanceById(instanceId, tenantId);
+
+      // 发送退回通知给发起人（在事务外执行）
+      this.sendReturnNotification(result, memberId, tenantId, returnDto.comment).catch(
+        (error) => {
+          this.logger.error('发送退回通知失败', error);
+        },
+      );
+
+      return result;
     });
+  }
+
+  /**
+   * 发送退回通知
+   */
+  private async sendReturnNotification(
+    instance: WorkflowInstance,
+    approverMemberId: number,
+    tenantId: number,
+    comment?: string,
+  ): Promise<void> {
+    try {
+      // 获取审批人信息
+      const approver = await this.memberRepository.findOne({
+        where: { id: approverMemberId },
+        relations: ['user'],
+      });
+      const approverName = approver?.user?.username || approver?.nickname || '审批人';
+
+      // 获取发起人userId
+      const initiatorUserId = await NotificationHelper.getUserIdFromMemberId(
+        this.memberRepository,
+        instance.initiatorId,
+      );
+
+      if (!initiatorUserId) {
+        return;
+      }
+
+      // 格式化通知内容
+      const { title, content } = NotificationHelper.formatWorkflowNotification(
+        'return',
+        instance.businessType,
+        approverName,
+        { comment },
+      );
+
+      // 创建通知
+      await this.notificationsService.create(
+        {
+          receiverId: initiatorUserId,
+          type: NotificationType.WORKFLOW,
+          title,
+          content,
+          metadata: {
+            businessType: instance.businessType,
+            businessId: instance.businessId,
+            instanceId: instance.id,
+            link: `/workflow/instances/${instance.id}`,
+          },
+        },
+        tenantId,
+      );
+    } catch (error) {
+      this.logger.error('发送退回通知失败', error);
+    }
   }
 
   /**

@@ -32,3 +32,5 @@ export * from './workflow-template.entity';
 export * from './workflow-node.entity';
 export * from './workflow-instance.entity';
 export * from './workflow-record.entity';
+export * from './notification.entity';
+export * from './notification-setting.entity';

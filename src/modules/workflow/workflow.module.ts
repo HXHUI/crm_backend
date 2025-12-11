@@ -14,6 +14,7 @@ import { Department } from '../../entities/department.entity';
 import { Quote } from '../../entities/quote.entity';
 import { Contract } from '../../entities/contract.entity';
 import { Order } from '../../entities/order.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { Order } from '../../entities/order.entity';
       Contract,
       Order,
     ]),
+    NotificationsModule,
   ],
   controllers: [WorkflowController],
   providers: [WorkflowService, WorkflowInstanceService, WorkflowApproverResolverService],

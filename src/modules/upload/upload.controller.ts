@@ -74,13 +74,57 @@ export class UploadController {
     try {
       const fileUrl = await this.uploadService.getFileUrl(file.filename);
       
+      // 处理文件名编码问题
+      // multer 在处理 multipart/form-data 时，如果浏览器发送的文件名是 UTF-8 编码，
+      // 但 Content-Disposition header 中的 filename 可能被解释为 latin1，导致中文乱码
+      let originalname = file.originalname;
+      try {
+        // 尝试修复可能的编码问题
+        // 方法1: 如果文件名包含非ASCII字符但不包含中文字符，可能是 latin1 编码
+        if (originalname && /[^\x00-\x7F]/.test(originalname) && !/[\u4e00-\u9fa5]/.test(originalname)) {
+          // 尝试从 latin1 解码
+          const decoded = Buffer.from(originalname, 'latin1').toString('utf8');
+          // 如果解码后包含中文字符，说明解码成功
+          if (/[\u4e00-\u9fa5]/.test(decoded)) {
+            originalname = decoded;
+          } else {
+            // 如果 latin1 解码失败，尝试使用 escape/unescape 方法（适用于某些浏览器）
+            try {
+              const escaped = originalname.replace(/%/g, '');
+              if (escaped !== originalname) {
+                const unescaped = unescape(originalname);
+                if (/[\u4e00-\u9fa5]/.test(unescaped)) {
+                  originalname = unescaped;
+                }
+              }
+            } catch {
+              // 忽略错误
+            }
+          }
+        }
+        // 方法2: 如果文件名看起来像是 URL 编码的，尝试解码
+        if (originalname && originalname.includes('%') && !/[\u4e00-\u9fa5]/.test(originalname)) {
+          try {
+            const urlDecoded = decodeURIComponent(originalname);
+            if (/[\u4e00-\u9fa5]/.test(urlDecoded)) {
+              originalname = urlDecoded;
+            }
+          } catch {
+            // URL 解码失败，继续使用原值
+          }
+        }
+      } catch (e) {
+        // 如果解码失败，使用原始文件名
+        console.warn('文件名解码失败，使用原始值:', e);
+      }
+      
       return {
         code: 200,
         message: '文件上传成功',
         data: {
           url: fileUrl,
           filename: file.filename,
-          originalname: file.originalname,
+          originalname: originalname,
           size: file.size,
           mimetype: file.mimetype,
         },

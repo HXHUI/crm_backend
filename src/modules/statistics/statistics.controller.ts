@@ -683,4 +683,184 @@ export class StatisticsController {
     return { code: 200, message: '获取赢单商机数排行榜成功', data };
   }
 
+  @Get('monthly-contract-amount-with-yoy')
+  @HttpCode(HttpStatus.OK)
+  async getMonthlyContractAmountWithYOY(
+    @Request() req: any,
+    @Query('year') year: string,
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    const parsedScopeType = scopeType || 'me_and_subordinates';
+    
+    const data = await this.statisticsService.getMonthlyContractAmountWithYearOverYearForTenants(
+      tenantIds,
+      yearNum,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取月度合同金额（含同比）成功', data };
+  }
+
+  @Get('monthly-order-amount-with-yoy')
+  @HttpCode(HttpStatus.OK)
+  async getMonthlyOrderAmountWithYOY(
+    @Request() req: any,
+    @Query('year') year: string,
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    const parsedScopeType = scopeType || 'me_and_subordinates';
+    
+    const data = await this.statisticsService.getMonthlyOrderAmountWithYearOverYearForTenants(
+      tenantIds,
+      yearNum,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取月度订单金额（含同比）成功', data };
+  }
+
+  @Get('monthly-lead-count-with-yoy')
+  @HttpCode(HttpStatus.OK)
+  async getMonthlyLeadCountWithYOY(
+    @Request() req: any,
+    @Query('year') year: string,
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    const parsedScopeType = scopeType || 'me_and_subordinates';
+    
+    const data = await this.statisticsService.getMonthlyLeadCountWithYearOverYearForTenants(
+      tenantIds,
+      yearNum,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取月度新增线索数（含同比）成功', data };
+  }
+
+  @Get('monthly-customer-count-with-yoy')
+  @HttpCode(HttpStatus.OK)
+  async getMonthlyCustomerCountWithYOY(
+    @Request() req: any,
+    @Query('year') year: string,
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    const parsedScopeType = scopeType || 'me_and_subordinates';
+    
+    const data = await this.statisticsService.getMonthlyCustomerCountWithYearOverYearForTenants(
+      tenantIds,
+      yearNum,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取月度新增客户数（含同比）成功', data };
+  }
+
+  @Get('monthly-opportunity-count-with-yoy')
+  @HttpCode(HttpStatus.OK)
+  async getMonthlyOpportunityCountWithYOY(
+    @Request() req: any,
+    @Query('year') year: string,
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    const parsedScopeType = scopeType || 'me_and_subordinates';
+    
+    const data = await this.statisticsService.getMonthlyOpportunityCountWithYearOverYearForTenants(
+      tenantIds,
+      yearNum,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取月度新增商机数（含同比）成功', data };
+  }
+
+  @Get('monthly-won-opportunity-count-with-yoy')
+  @HttpCode(HttpStatus.OK)
+  async getMonthlyWonOpportunityCountWithYOY(
+    @Request() req: any,
+    @Query('year') year: string,
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    const parsedScopeType = scopeType || 'me_and_subordinates';
+    
+    const data = await this.statisticsService.getMonthlyWonOpportunityCountWithYearOverYearForTenants(
+      tenantIds,
+      yearNum,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取月度赢单商机数（含同比）成功', data };
+  }
+
 }

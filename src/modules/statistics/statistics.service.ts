@@ -3155,4 +3155,256 @@ export class StatisticsService {
 
     return results.sort((a, b) => b.totalCount - a.totalCount);
   }
+
+  /**
+   * 获取本年度各月份合同金额（含同比数据）
+   * @param tenantIds 租户ID数组
+   * @param year 年份
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getMonthlyContractAmountWithYearOverYearForTenants(
+    tenantIds: number[],
+    year: number,
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<{ current: number[]; yearOverYear: number[] }> {
+    const [current, yearOverYear] = await Promise.all([
+      this.getMonthlyContractAmountForTenants(
+        tenantIds,
+        year,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+      this.getMonthlyContractAmountForTenants(
+        tenantIds,
+        year - 1,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+    ]);
+    return { current, yearOverYear };
+  }
+
+  /**
+   * 获取本年度各月份订单金额（含同比数据）
+   * @param tenantIds 租户ID数组
+   * @param year 年份
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getMonthlyOrderAmountWithYearOverYearForTenants(
+    tenantIds: number[],
+    year: number,
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<{ current: number[]; yearOverYear: number[] }> {
+    const [current, yearOverYear] = await Promise.all([
+      this.getMonthlyOrderAmountForTenants(
+        tenantIds,
+        year,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+      this.getMonthlyOrderAmountForTenants(
+        tenantIds,
+        year - 1,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+    ]);
+    return { current, yearOverYear };
+  }
+
+  /**
+   * 获取本年度各月份新增线索数（含同比数据）
+   * @param tenantIds 租户ID数组
+   * @param year 年份
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getMonthlyLeadCountWithYearOverYearForTenants(
+    tenantIds: number[],
+    year: number,
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<{ current: number[]; yearOverYear: number[] }> {
+    const [current, yearOverYear] = await Promise.all([
+      this.getMonthlyLeadCountForTenants(
+        tenantIds,
+        year,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+      this.getMonthlyLeadCountForTenants(
+        tenantIds,
+        year - 1,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+    ]);
+    return { current, yearOverYear };
+  }
+
+  /**
+   * 获取本年度各月份新增客户数（含同比数据）
+   * @param tenantIds 租户ID数组
+   * @param year 年份
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getMonthlyCustomerCountWithYearOverYearForTenants(
+    tenantIds: number[],
+    year: number,
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<{ current: number[]; yearOverYear: number[] }> {
+    const [current, yearOverYear] = await Promise.all([
+      this.getMonthlyCustomerCountForTenants(
+        tenantIds,
+        year,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+      this.getMonthlyCustomerCountForTenants(
+        tenantIds,
+        year - 1,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+    ]);
+    return { current, yearOverYear };
+  }
+
+  /**
+   * 获取本年度各月份新增商机数（含同比数据）
+   * @param tenantIds 租户ID数组
+   * @param year 年份
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getMonthlyOpportunityCountWithYearOverYearForTenants(
+    tenantIds: number[],
+    year: number,
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<{ current: number[]; yearOverYear: number[] }> {
+    const [current, yearOverYear] = await Promise.all([
+      this.getMonthlyOpportunityCountForTenants(
+        tenantIds,
+        year,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+      this.getMonthlyOpportunityCountForTenants(
+        tenantIds,
+        year - 1,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+    ]);
+    return { current, yearOverYear };
+  }
+
+  /**
+   * 获取本年度各月份赢单商机数（含同比数据）
+   * @param tenantIds 租户ID数组
+   * @param year 年份
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getMonthlyWonOpportunityCountWithYearOverYearForTenants(
+    tenantIds: number[],
+    year: number,
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<{ current: number[]; yearOverYear: number[] }> {
+    const [current, yearOverYear] = await Promise.all([
+      this.getMonthlyWonOpportunityCountForTenants(
+        tenantIds,
+        year,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+      this.getMonthlyWonOpportunityCountForTenants(
+        tenantIds,
+        year - 1,
+        scopeType,
+        departmentId,
+        memberId,
+        currentMemberId,
+        tenantId,
+      ),
+    ]);
+    return { current, yearOverYear };
+  }
 }
