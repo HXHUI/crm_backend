@@ -175,6 +175,66 @@ export class StatisticsController {
     return { code: 200, message: '获取销售漏斗成功', data };
   }
 
+  @Get('opportunity-stage-distribution')
+  @HttpCode(HttpStatus.OK)
+  async getOpportunityStageDistribution(
+    @Request() req: any,
+    @Query('scope') scope: 'me' | 'all' = 'me',
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    
+    // 兼容旧的 scope 参数
+    let parsedScopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = scopeType || (scope === 'all' ? 'all' : 'me_and_subordinates');
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    
+    const data = await this.statisticsService.getOpportunityStageDistributionForTenants(
+      tenantIds,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取商机阶段分布成功', data };
+  }
+
+  @Get('customer-conversion-funnel')
+  @HttpCode(HttpStatus.OK)
+  async getCustomerConversionFunnel(
+    @Request() req: any,
+    @Query('scope') scope: 'me' | 'all' = 'me',
+    @Query('viewType') viewType: 'tenant' | 'group' = 'tenant',
+    @Query('scopeType') scopeType?: 'me_and_subordinates' | 'all' | 'department' | 'member',
+    @Query('departmentId') departmentId?: string,
+    @Query('memberId') memberId?: string,
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const currentMemberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const tenantIds = await this.getTenantIdsForQuery(tenantId, currentMemberId, viewType);
+    
+    // 兼容旧的 scope 参数
+    let parsedScopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = scopeType || (scope === 'all' ? 'all' : 'me_and_subordinates');
+    const parsedDepartmentId = departmentId ? parseInt(departmentId, 10) : undefined;
+    const parsedMemberId = memberId ? parseInt(memberId, 10) : undefined;
+    
+    const data = await this.statisticsService.getCustomerConversionFunnelForTenants(
+      tenantIds,
+      parsedScopeType,
+      parsedDepartmentId,
+      parsedMemberId,
+      currentMemberId,
+      tenantId,
+    );
+    return { code: 200, message: '获取客户转化漏斗成功', data };
+  }
+
   @Get('customer-source-distribution')
   @HttpCode(HttpStatus.OK)
   async getCustomerSourceDistribution(

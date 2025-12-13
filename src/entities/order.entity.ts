@@ -2,7 +2,6 @@ import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Customer } from './customer.entity';
 import { Opportunity } from './opportunity.entity';
-import { Quote } from './quote.entity';
 import { Contract } from './contract.entity';
 import { Member } from './member.entity';
 import { OrderItem } from './order-item.entity';
@@ -33,13 +32,6 @@ export class Order extends BaseEntity {
   @ManyToOne(() => Customer)
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
-
-  @Column({ name: 'quote_id', type: 'bigint', nullable: true, comment: '报价ID' })
-  quoteId?: number;
-
-  @ManyToOne(() => Quote, { nullable: true })
-  @JoinColumn({ name: 'quote_id' })
-  quote?: Quote;
 
   @Column({ name: 'contract_id', type: 'bigint', nullable: true, comment: '合同ID' })
   contractId?: number;

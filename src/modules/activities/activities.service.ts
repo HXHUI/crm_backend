@@ -218,6 +218,13 @@ export class ActivitiesService {
           ? {
               id: a.owner.id,
               username: a.owner.nickname || (a as any).owner?.user?.username || null,
+              user: a.owner.user
+                ? {
+                    id: a.owner.user.id,
+                    username: a.owner.user.username,
+                    avatar: a.owner.user.avatar || null,
+                  }
+                : null,
             }
           : null,
         // 添加关联对象信息，只返回必要的字段

@@ -300,11 +300,16 @@ export class TenantService {
     const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
     const queryBuilder = this.memberRepository.createQueryBuilder('member')
       .leftJoinAndSelect('member.user', 'user')
+      .leftJoin('user.creator', 'creator')
+      .addSelect(['creator.id', 'creator.username'])
       .leftJoinAndSelect('member.tenant', 'tenant')
+      .leftJoinAndSelect('member.departments', 'departments')
+      .leftJoinAndSelect('member.memberRoles', 'memberRoles')
+      .leftJoinAndSelect('memberRoles.role', 'role')
       .where('member.tenantId = :tenantId', { tenantId: tenantIdNum });
 
     if (search) {
-      queryBuilder.andWhere('user.username LIKE :search OR user.email LIKE :search', {
+      queryBuilder.andWhere('user.username LIKE :search OR user.email LIKE :search OR user.phone LIKE :search', {
         search: `%${search}%`
       });
     }

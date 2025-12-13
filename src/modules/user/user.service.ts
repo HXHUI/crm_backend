@@ -351,4 +351,51 @@ export class UserService {
 
     return members;
   }
+
+  async deleteUser(id: string | number, operatorId: string | number) {
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
+    const operatorIdNum = typeof operatorId === 'string' ? parseInt(operatorId, 10) : operatorId;
+
+    // 检查用户是否存在
+    const user = await this.userRepository.findOne({
+      where: { id: idNum },
+    });
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    // 检查操作者权限（不能删除自己）
+    if (user.id === operatorIdNum) {
+      throw new ForbiddenException('不能删除自己');
+    }
+
+    // 查找并删除用户的成员记录
+    const members = await this.memberRepository.find({
+      where: { userId: idNum },
+      relations: ['memberRoles', 'departments']
+    });
+
+    for (const member of members) {
+      // 删除成员角色关联
+      if (member.memberRoles && member.memberRoles.length > 0) {
+        await this.memberRoleRepository.remove(member.memberRoles);
+      }
+
+      // 删除成员部门关联（多对多关系）
+      if (member.departments && member.departments.length > 0) {
+        await this.memberRepository
+          .createQueryBuilder()
+          .relation(Member, 'departments')
+          .of(member.id)
+          .remove(member.departments.map(dept => dept.id));
+      }
+
+      // 删除成员记录
+      await this.memberRepository.remove(member);
+    }
+
+    // 删除用户记录
+    await this.userRepository.remove(user);
+  }
 }

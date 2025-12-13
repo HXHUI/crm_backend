@@ -258,16 +258,41 @@ export class BusinessInfoService {
 
       // 保存对外投资
       if (companyDetail.investments && companyDetail.investments.length > 0) {
-        const investmentList = companyDetail.investments.map((i) =>
-          queryRunner.manager.create(BusinessInvestment, {
+        this.logger.debug(`[syncBusinessInfo] 准备保存 ${companyDetail.investments.length} 条对外投资数据`);
+        const investmentList = companyDetail.investments.map((i: any, index: number) => {
+          const investmentData = {
             businessInfoId: businessInfo.id,
             investedCompany: i.investedCompany,
             shareholderType: i.shareholderType,
             shareholdingRatio: i.shareholdingRatio,
             investmentAmount: i.investmentAmount,
-          }),
-        );
+            // 保存所有原始字段
+            tianyanchaId: i.tianyanchaId,
+            regStatus: i.regStatus,
+            amount: i.amount,
+            amountSuffix: i.amountSuffix,
+            paidinTime: i.paidinTime,
+            establishmentTime: i.establishmentTime,
+            establishmentDate: i.establishmentDate,
+            regCapital: i.regCapital,
+            subscriptionTime: i.subscriptionTime,
+            subscriptionDate: i.subscriptionDate,
+            type: i.type,
+            percent: i.percent,
+            legalPersonName: i.legalPersonName,
+            businessScope: i.businessScope,
+            orgType: i.orgType,
+            creditCode: i.creditCode,
+            alias: i.alias,
+            category: i.category,
+            personType: i.personType,
+            base: i.base,
+          };
+          this.logger.debug(`[syncBusinessInfo] 第 ${index + 1} 条对外投资数据:`, JSON.stringify(investmentData, null, 2));
+          return queryRunner.manager.create(BusinessInvestment, investmentData);
+        });
         await queryRunner.manager.save(BusinessInvestment, investmentList);
+        this.logger.log(`[syncBusinessInfo] 成功保存 ${investmentList.length} 条对外投资数据`);
       }
 
       // 保存变更记录
@@ -508,16 +533,41 @@ export class BusinessInfoService {
         await queryRunner.manager.delete(BusinessInvestment, {
           businessInfoId: businessInfo.id,
         });
-        await queryRunner.manager.save(
-          BusinessInvestment,
-          companyDetail.investments.map((i) => ({
+        this.logger.debug(`[refreshBusinessInfoByCompanyName] 准备保存 ${companyDetail.investments.length} 条对外投资数据`);
+        const investmentList = companyDetail.investments.map((i: any, index: number) => {
+          const investmentData = {
             businessInfoId: businessInfo.id,
             investedCompany: i.investedCompany,
             shareholderType: i.shareholderType,
             shareholdingRatio: i.shareholdingRatio,
             investmentAmount: i.investmentAmount,
-          })),
-        );
+            // 保存所有原始字段
+            tianyanchaId: i.tianyanchaId,
+            regStatus: i.regStatus,
+            amount: i.amount,
+            amountSuffix: i.amountSuffix,
+            paidinTime: i.paidinTime,
+            establishmentTime: i.establishmentTime,
+            establishmentDate: i.establishmentDate,
+            regCapital: i.regCapital,
+            subscriptionTime: i.subscriptionTime,
+            subscriptionDate: i.subscriptionDate,
+            type: i.type,
+            percent: i.percent,
+            legalPersonName: i.legalPersonName,
+            businessScope: i.businessScope,
+            orgType: i.orgType,
+            creditCode: i.creditCode,
+            alias: i.alias,
+            category: i.category,
+            personType: i.personType,
+            base: i.base,
+          };
+          this.logger.debug(`[refreshBusinessInfoByCompanyName] 第 ${index + 1} 条对外投资数据:`, JSON.stringify(investmentData, null, 2));
+          return queryRunner.manager.create(BusinessInvestment, investmentData);
+        });
+        await queryRunner.manager.save(BusinessInvestment, investmentList);
+        this.logger.log(`[refreshBusinessInfoByCompanyName] 成功保存 ${investmentList.length} 条对外投资数据`);
       }
 
       if (companyDetail.changeRecords && companyDetail.changeRecords.length > 0) {

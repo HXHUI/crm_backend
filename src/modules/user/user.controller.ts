@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -116,6 +117,21 @@ export class UserController {
       code: 200,
       message: '获取用户成员记录成功',
       data: result
+    };
+  }
+
+  // DELETE /users/:id - 删除用户
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  async deleteUser(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    await this.userService.deleteUser(parseInt(id, 10), userId);
+    return {
+      code: 200,
+      message: '删除用户成功'
     };
   }
 }

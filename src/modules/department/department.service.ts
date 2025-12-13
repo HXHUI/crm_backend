@@ -36,71 +36,100 @@ export class DepartmentService {
     private readonly memberDepartmentRepository: Repository<MemberDepartment>,
   ) {}
 
-  async getDepartmentTree(tenantId: number) {
+  async getDepartmentTree(tenantId: number, includeGroup: boolean = false) {
     // 获取租户信息
     const tenant = await this.tenantRepository.findOne({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      relations: ['parent', 'children']
     });
 
     if (!tenant) {
       throw new NotFoundException('租户不存在');
     }
 
-    // 获取所有部门
-    const departments = await this.departmentRepository.find({
-      where: { tenantId },
-      relations: ['manager', 'parent'],
-      order: { sort: 'ASC', createdAt: 'ASC' }
-    });
-
-    // 构建树形结构
-    const departmentMap = new Map();
-    const rootDepartments = [];
-
-    // 创建部门映射
-    departments.forEach(dept => {
-      departmentMap.set(dept.id, {
-        ...dept,
-        type: 'department',
-        children: [],
-        memberCount: 0
-      });
-    });
-
-    // 构建父子关系
-    departments.forEach(dept => {
-      const deptNode = departmentMap.get(dept.id);
-      if (dept.parentId) {
-        const parent = departmentMap.get(dept.parentId);
-        if (parent) {
-          parent.children.push(deptNode);
-        }
-      } else {
-        rootDepartments.push(deptNode);
+    // 如果包含集团视图，需要找到根租户
+    let rootTenant = tenant;
+    if (includeGroup && tenant.parentId) {
+      // 向上查找根租户
+      let currentTenant = tenant;
+      while (currentTenant.parentId) {
+        const parent = await this.tenantRepository.findOne({
+          where: { id: currentTenant.parentId }
+        });
+        if (!parent) break;
+        currentTenant = parent;
       }
-    });
-
-    // 暂时不计算成员数量，避免复杂的关联查询
-    for (const dept of departments) {
-      const deptNode = departmentMap.get(dept.id);
-      deptNode.memberCount = 0;
+      rootTenant = currentTenant;
     }
 
-    // 计算租户总成员数
-    const totalMemberCount = await this.memberRepository.count({
-      where: { tenantId }
-    });
+    // 递归构建租户树（包含子租户）
+    const buildTenantTree = async (currentTenant: Tenant): Promise<any> => {
+      // 获取当前租户的所有部门
+      const departments = await this.departmentRepository.find({
+        where: { tenantId: currentTenant.id },
+        relations: ['manager', 'parent'],
+        order: { sort: 'ASC', createdAt: 'ASC' }
+      });
 
-    // 创建租户根节点
-    const tenantRoot = {
-      id: tenant.id,
-      name: tenant.name,
-      type: 'company',
-      memberCount: totalMemberCount,
-      children: rootDepartments,
-      isTenant: true
+      // 构建部门树形结构
+      const departmentMap = new Map();
+      const rootDepartments = [];
+
+      // 创建部门映射
+      departments.forEach(dept => {
+        departmentMap.set(dept.id, {
+          ...dept,
+          type: 'department',
+          children: [],
+          memberCount: 0
+        });
+      });
+
+      // 构建部门父子关系
+      departments.forEach(dept => {
+        const deptNode = departmentMap.get(dept.id);
+        if (dept.parentId) {
+          const parent = departmentMap.get(dept.parentId);
+          if (parent) {
+            parent.children.push(deptNode);
+          }
+        } else {
+          rootDepartments.push(deptNode);
+        }
+      });
+
+      // 计算租户总成员数
+      const totalMemberCount = await this.memberRepository.count({
+        where: { tenantId: currentTenant.id }
+      });
+
+      // 如果包含集团视图，递归获取子租户
+      let tenantChildren: any[] = [];
+      if (includeGroup) {
+        const childTenants = await this.tenantRepository.find({
+          where: { parentId: currentTenant.id },
+          order: { createdAt: 'ASC' }
+        });
+
+        tenantChildren = await Promise.all(
+          childTenants.map(childTenant => buildTenantTree(childTenant))
+        );
+      }
+
+      // 创建租户节点
+      return {
+        id: currentTenant.id,
+        name: currentTenant.name,
+        type: 'company',
+        memberCount: totalMemberCount,
+        children: [...tenantChildren, ...rootDepartments], // 子租户在前，部门在后
+        isTenant: true,
+        tenantId: currentTenant.id,
+        parentId: currentTenant.parentId
+      };
     };
 
+    const tenantRoot = await buildTenantTree(rootTenant);
     return [tenantRoot];
   }
 
@@ -180,13 +209,14 @@ export class DepartmentService {
         }
       }
 
-      // 检查部门名称是否重复
+      // 检查部门是否已存在，如果存在则直接返回（适用于导入等场景）
       const existingDepartment = await this.departmentRepository.findOne({
         where: { name, tenantId, parentId: parentId || null }
       });
 
       if (existingDepartment) {
-        throw new ForbiddenException('同级部门名称不能重复');
+        // 部门已存在，直接返回已存在的部门，不抛出错误
+        return existingDepartment;
       }
 
       // 检查负责人是否存在
@@ -447,7 +477,15 @@ export class DepartmentService {
     member.departments = [...(member.departments || []), department];
     member.position = position || member.position;
 
-    return await this.memberRepository.save(member);
+    await this.memberRepository.save(member);
+
+    // 如果指定为部门负责人，更新部门的managerId
+    if (isManager) {
+      department.managerId = memberId;
+      await this.departmentRepository.save(department);
+    }
+
+    return member;
   }
 
   async batchAddDepartmentMembers(departmentId: number, memberIds: number[], position: string, isManager: boolean, tenantId: number) {

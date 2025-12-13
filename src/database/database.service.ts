@@ -95,6 +95,21 @@ export class DatabaseService {
    * 插入权限数据
    */
   private async seedPermissions(): Promise<void> {
+    // 先检查表是否存在
+    const databaseName = this.configService.get<string>('DB_DATABASE', 'crm_db');
+    const tables = await this.dataSource.query(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = ? 
+      AND TABLE_NAME = 'permissions'
+    `, [databaseName]);
+    
+    if (!Array.isArray(tables) || tables.length === 0) {
+      this.logger.warn('permissions 表不存在，跳过权限数据插入');
+      this.logger.warn('请先执行 SQL 脚本创建表结构：npm run db:setup 或直接执行 src/database/init-db.sql');
+      return;
+    }
+    
     const permissionRepository = this.dataSource.getRepository(Permission);
     
     // 检查是否已有权限数据
@@ -164,6 +179,20 @@ export class DatabaseService {
    * 插入套餐数据
    */
   private async seedSubscriptionPlans(): Promise<void> {
+    // 先检查表是否存在
+    const databaseName = this.configService.get<string>('DB_DATABASE', 'crm_db');
+    const tables = await this.dataSource.query(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = ? 
+      AND TABLE_NAME = 'subscription_plans'
+    `, [databaseName]);
+    
+    if (!Array.isArray(tables) || tables.length === 0) {
+      this.logger.warn('subscription_plans 表不存在，跳过套餐数据插入');
+      return;
+    }
+    
     const planRepository = this.dataSource.getRepository(SubscriptionPlan);
     
     // 检查是否已有套餐数据

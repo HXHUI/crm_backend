@@ -28,7 +28,7 @@ export class MigrationService {
 
   /**
    * 初始化迁移表
-   * 注意：migrations 表的结构定义在 scripts/init-db.sql 中
+   * 注意：migrations 表的结构定义在 src/database/init-db.sql 中
    * 此方法仅作为备用方案，确保表存在（如果未运行 SQL 脚本）
    */
   async initMigrationsTable(): Promise<void> {
@@ -43,7 +43,7 @@ export class MigrationService {
 
       if (!Array.isArray(tables) || tables.length === 0) {
         // 表不存在，创建新表（结构与 init-db.sql 中保持一致）
-        this.logger.warn('migrations 表不存在，正在创建（建议使用 scripts/init-db.sql 初始化数据库）');
+        this.logger.warn('migrations 表不存在，正在创建（建议使用 src/database/init-db.sql 初始化数据库）');
         await this.dataSource.query(`
           CREATE TABLE migrations (
             id INT AUTO_INCREMENT PRIMARY KEY,

@@ -51,7 +51,8 @@ crm_backend/
 │   └── main.ts                 # 应用入口
 ├── scripts/                    # 脚本文件
 │   ├── start.sh               # Linux/Mac启动脚本
-│   ├── start.ps1              # Windows启动脚本
+│   └── start.ps1              # Windows启动脚本
+├── src/database/               # 数据库相关文件
 │   └── init-db.sql            # 数据库初始化脚本
 ├── docs/                      # 文档
 │   └── API.md                 # API文档
@@ -166,7 +167,7 @@ crm_backend/
 ### 快速启动
 1. 安装依赖: `npm install`
 2. 配置环境变量: 复制 `.env.example` 到 `.env`
-3. 初始化数据库: 执行 `scripts/init-db.sql`
+3. 初始化数据库: 执行 `src/database/init-db.sql` 或使用 `npm run db:setup`
 4. 启动服务: `npm run start:dev`
 
 ### 生产部署

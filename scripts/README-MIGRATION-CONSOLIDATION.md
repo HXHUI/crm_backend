@@ -2,11 +2,11 @@
 
 ## 概述
 
-所有历史迁移已整合到 `init-db.sql` 中。新环境可以直接使用 `init-db.sql` 初始化数据库，无需执行历史迁移。
+所有历史迁移已整合到 `src/database/init-db.sql` 中。新环境可以直接使用 `init-db.sql` 初始化数据库，无需执行历史迁移。
 
 ## 整合的迁移列表
 
-以下迁移已整合到 `init-db.sql` 中：
+以下迁移已整合到 `src/database/init-db.sql` 中：
 
 1. `20250920195345` - initial-schema
 2. `20250920195353` - add-user-profile-fields
@@ -38,26 +38,30 @@
 
 ### 新环境初始化
 
-对于新环境，直接使用 `init-db.sql` 初始化数据库：
+对于新环境，建议使用配置化的脚本初始化数据库：
 
 ```bash
-# 方式1：使用 MySQL 命令行
-mysql -u root -p < scripts/init-db.sql
-
-# 方式2：使用 Node.js 脚本
+# 推荐方式：使用 Node.js 脚本（会自动从环境变量读取数据库配置）
 npm run db:setup
+# 或
+node scripts/setup-database.js
+
+# 方式2：使用 MySQL 命令行（需要手动替换脚本中的数据库名称）
+# 注意：需要先设置环境变量或手动修改 init-db.sql 中的数据库名称
+mysql -u root -p < src/database/init-db.sql
 ```
 
-### 标记历史迁移为已完成
+### 数据库配置
 
-如果使用 `init-db.sql` 初始化数据库后，需要标记所有历史迁移为已完成，以避免迁移服务重复执行：
+数据库配置信息从环境变量或 `.env` 文件中读取：
 
-```bash
-# 使用 MySQL 命令行
-mysql -u root -p crm_db < scripts/mark-migrations-as-executed.sql
-```
+- `DB_HOST` - MySQL 主机地址（默认: localhost）
+- `DB_PORT` - MySQL 端口（默认: 3306）
+- `DB_USERNAME` - MySQL 用户名（默认: root）
+- `DB_PASSWORD` - MySQL 密码
+- `DB_DATABASE` - 数据库名称（默认: crm_db）
 
-或者在应用启动后，迁移服务会自动检测并跳过已执行的迁移。
+所有脚本都会自动从环境变量读取配置，无需硬编码。
 
 ## 后续迁移
 
@@ -69,9 +73,9 @@ mysql -u root -p crm_db < scripts/mark-migrations-as-executed.sql
 
 ## 注意事项
 
-1. **生产环境**：如果生产环境已有数据，请勿直接使用 `init-db.sql`，应继续使用迁移系统逐步升级。
+1. **生产环境**：如果生产环境已有数据，请勿直接使用 `src/database/init-db.sql`，应继续使用迁移系统逐步升级。
 
-2. **开发环境**：如果开发环境可以重置，可以直接使用 `init-db.sql` 重新初始化。
+2. **开发环境**：如果开发环境可以重置，可以直接使用 `src/database/init-db.sql` 重新初始化。
 
 3. **迁移文件保留**：历史迁移文件建议保留在代码库中，作为数据库结构变更的历史记录。
 

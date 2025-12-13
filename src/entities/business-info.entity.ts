@@ -164,8 +164,69 @@ export class BusinessInvestment extends BaseEntity {
   @Column({ name: 'shareholding_ratio', type: 'decimal', precision: 10, scale: 4, nullable: true, comment: '持股比例(%)' })
   shareholdingRatio?: number;
 
-  @Column({ name: 'investment_amount', type: 'decimal', precision: 20, scale: 2, nullable: true, comment: '投资金额(万元)' })
+  @Column({ name: 'investment_amount', type: 'decimal', precision: 20, scale: 2, nullable: true, comment: '投资金额(元)' })
   investmentAmount?: number;
+
+  // 天眼查原始字段
+  @Column({ name: 'tianyancha_id', type: 'bigint', nullable: true, comment: '天眼查ID' })
+  tianyanchaId?: number;
+
+  @Column({ name: 'reg_status', nullable: true, comment: '经营状态' })
+  regStatus?: string;
+
+  @Column({ name: 'amount', type: 'decimal', precision: 20, scale: 2, nullable: true, comment: '投资金额数值' })
+  amount?: number;
+
+  @Column({ name: 'amount_suffix', nullable: true, comment: '金额后缀' })
+  amountSuffix?: string;
+
+  @Column({ name: 'paidin_time', type: 'bigint', nullable: true, comment: '实缴时间(时间戳)' })
+  paidinTime?: number;
+
+  @Column({ name: 'establishment_time', type: 'bigint', nullable: true, comment: '成立时间(时间戳)' })
+  establishmentTime?: number;
+
+  @Column({ name: 'establishment_date', type: 'date', nullable: true, comment: '成立日期' })
+  establishmentDate?: Date;
+
+  @Column({ name: 'reg_capital', nullable: true, comment: '注册资本' })
+  regCapital?: string;
+
+  @Column({ name: 'subscription_time', type: 'bigint', nullable: true, comment: '认缴时间(时间戳)' })
+  subscriptionTime?: number;
+
+  @Column({ name: 'subscription_date', type: 'date', nullable: true, comment: '认缴日期' })
+  subscriptionDate?: Date;
+
+  @Column({ name: 'type', type: 'int', nullable: true, comment: '类型(1=公司,2=人)' })
+  type?: number;
+
+  @Column({ name: 'percent', nullable: true, comment: '持股比例(字符串格式)' })
+  percent?: string;
+
+  @Column({ name: 'legal_person_name', nullable: true, comment: '法定代表人' })
+  legalPersonName?: string;
+
+  @Column({ name: 'business_scope', type: 'text', nullable: true, comment: '经营范围' })
+  businessScope?: string;
+
+  @Column({ name: 'org_type', nullable: true, comment: '企业类型' })
+  orgType?: string;
+
+  @Column({ name: 'credit_code', nullable: true, comment: '统一社会信用代码' })
+  creditCode?: string;
+
+  @Column({ name: 'alias', nullable: true, comment: '别名' })
+  alias?: string;
+
+  @Column({ name: 'category', nullable: true, comment: '行业类别' })
+  category?: string;
+
+  @Column({ name: 'person_type', type: 'int', nullable: true, comment: '人员类型(1=人,2=公司)' })
+  personType?: number;
+
+  @Column({ name: 'base', nullable: true, comment: '地区代码' })
+  base?: string;
 }
 
 @Entity('business_change_records')

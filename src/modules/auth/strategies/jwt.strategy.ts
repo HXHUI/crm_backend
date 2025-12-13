@@ -81,6 +81,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       memberId,
       tenantId: actualTenantId,
       currentDepartmentId,
+      isSystemAdmin: user.isSystemAdmin || false, // 添加系统管理员标识
     };
   }
 }

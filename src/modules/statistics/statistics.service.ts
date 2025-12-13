@@ -114,6 +114,58 @@ export interface SalesFunnelData {
   };
 }
 
+export interface OpportunityStageDistributionData {
+  initialContact: {
+    count: number;
+    amount: number;
+  };
+  needsAnalysis: {
+    count: number;
+    amount: number;
+  };
+  proposalQuote: {
+    count: number;
+    amount: number;
+  };
+  negotiationReview: {
+    count: number;
+    amount: number;
+  };
+  closedWon: {
+    count: number;
+    amount: number;
+  };
+  closedLost: {
+    count: number;
+    amount: number;
+  };
+}
+
+export interface CustomerConversionFunnelData {
+  leads: {
+    count: number;
+  };
+  converted: {
+    count: number;
+  };
+  qualified: {
+    count: number;
+    amount: number;
+  };
+  proposal: {
+    count: number;
+    amount: number;
+  };
+  negotiation: {
+    count: number;
+    amount: number;
+  };
+  closedWon: {
+    count: number;
+    amount: number;
+  };
+}
+
 export interface CustomerSourceDistributionData {
   source: string;
   count: number;
@@ -1414,6 +1466,218 @@ export class StatisticsService {
   async getSalesFunnel(tenantId: number, memberId?: number): Promise<SalesFunnelData> {
     const scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = memberId ? 'member' : 'all';
     return this.getSalesFunnelForTenants([tenantId], scopeType, undefined, memberId, memberId, tenantId);
+  }
+
+  /**
+   * 获取商机阶段分布（支持多租户）
+   * @param tenantIds 租户ID数组
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getOpportunityStageDistributionForTenants(
+    tenantIds: number[],
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<OpportunityStageDistributionData> {
+    const filteredMemberIds = await this.getFilteredMemberIds(
+      scopeType,
+      departmentId,
+      memberId,
+      currentMemberId,
+      tenantId,
+    );
+
+    // 构建基础查询
+    const baseQuery = this.opportunityRepository
+      .createQueryBuilder('opportunity')
+      .where('opportunity.deletedAt IS NULL');
+
+    // 应用租户过滤
+    this.buildTenantCondition(baseQuery, 'opportunity', tenantIds);
+
+    // 应用成员过滤
+    if (filteredMemberIds !== undefined) {
+      if (filteredMemberIds.length === 0) {
+        baseQuery.andWhere('1 = 0'); // 永远不匹配
+      } else {
+        baseQuery.andWhere('opportunity.ownerId IN (:...memberIds)', { memberIds: filteredMemberIds });
+      }
+    }
+
+    // 并行查询各个阶段的商机数量和金额（包括输单）
+    const [
+      initialContactData,
+      needsAnalysisData,
+      proposalQuoteData,
+      negotiationReviewData,
+      closedWonData,
+      closedLostData,
+    ] = await Promise.all([
+      // 初步接触阶段
+      this.getOpportunityStageData(baseQuery.clone(), OpportunityStage.INITIAL_CONTACT),
+      
+      // 需求分析阶段
+      this.getOpportunityStageData(baseQuery.clone(), OpportunityStage.NEEDS_ANALYSIS),
+      
+      // 方案/报价阶段
+      this.getOpportunityStageData(baseQuery.clone(), OpportunityStage.PROPOSAL_QUOTE),
+      
+      // 谈判审核阶段
+      this.getOpportunityStageData(baseQuery.clone(), OpportunityStage.NEGOTIATION_REVIEW),
+      
+      // 赢单阶段
+      this.getOpportunityStageData(baseQuery.clone(), OpportunityStage.CLOSED_WON),
+      
+      // 输单阶段
+      this.getOpportunityStageData(baseQuery.clone(), OpportunityStage.CLOSED_LOST),
+    ]);
+
+    return {
+      initialContact: initialContactData,
+      needsAnalysis: needsAnalysisData,
+      proposalQuote: proposalQuoteData,
+      negotiationReview: negotiationReviewData,
+      closedWon: closedWonData,
+      closedLost: closedLostData,
+    };
+  }
+
+  /**
+   * 获取客户转化漏斗（支持多租户）
+   * @param tenantIds 租户ID数组
+   * @param scopeType 范围类型
+   * @param departmentId 部门ID（可选）
+   * @param memberId 成员ID（可选）
+   * @param currentMemberId 当前成员ID
+   * @param tenantId 租户ID
+   */
+  async getCustomerConversionFunnelForTenants(
+    tenantIds: number[],
+    scopeType: 'me_and_subordinates' | 'all' | 'department' | 'member' = 'me_and_subordinates',
+    departmentId?: number,
+    memberId?: number,
+    currentMemberId?: number,
+    tenantId?: number,
+  ): Promise<CustomerConversionFunnelData> {
+    const filteredMemberIds = await this.getFilteredMemberIds(
+      scopeType,
+      departmentId,
+      memberId,
+      currentMemberId,
+      tenantId,
+    );
+
+    // 1. 获取线索总数
+    const leadQuery = this.leadRepository
+      .createQueryBuilder('lead')
+      .where('lead.deletedAt IS NULL');
+    
+    this.buildTenantCondition(leadQuery, 'lead', tenantIds);
+    
+    if (filteredMemberIds !== undefined) {
+      if (filteredMemberIds.length === 0) {
+        leadQuery.andWhere('1 = 0');
+      } else {
+        leadQuery.andWhere('lead.ownerId IN (:...memberIds)', { memberIds: filteredMemberIds });
+      }
+    }
+    
+    const leadsCount = await leadQuery.getCount();
+
+    // 2. 获取已转化客户数（从线索转化的客户）
+    const convertedQuery = this.customerRepository
+      .createQueryBuilder('customer')
+      .innerJoin('leads', 'lead', 'lead.convertedCustomerId = customer.id')
+      .where('customer.deletedAt IS NULL')
+      .andWhere('lead.deletedAt IS NULL');
+    
+    this.buildTenantCondition(convertedQuery, 'customer', tenantIds);
+    
+    if (filteredMemberIds !== undefined) {
+      if (filteredMemberIds.length === 0) {
+        convertedQuery.andWhere('1 = 0');
+      } else {
+        convertedQuery.andWhere('customer.ownerId IN (:...memberIds)', { memberIds: filteredMemberIds });
+      }
+    }
+    
+    const convertedCount = await convertedQuery.getCount();
+
+    // 3. 获取客户各状态数据
+    const customerBaseQuery = this.customerRepository
+      .createQueryBuilder('customer')
+      .where('customer.deletedAt IS NULL');
+    
+    this.buildTenantCondition(customerBaseQuery, 'customer', tenantIds);
+    
+    if (filteredMemberIds !== undefined) {
+      if (filteredMemberIds.length === 0) {
+        customerBaseQuery.andWhere('1 = 0');
+      } else {
+        customerBaseQuery.andWhere('customer.ownerId IN (:...memberIds)', { memberIds: filteredMemberIds });
+      }
+    }
+
+    // 并行查询各状态客户数据
+    const [
+      qualifiedData,
+      proposalData,
+      negotiationData,
+      closedWonData,
+    ] = await Promise.all([
+      // 合格客户
+      this.getCustomerStatusData(customerBaseQuery.clone(), CustomerStatus.QUALIFIED),
+      // 提案客户
+      this.getCustomerStatusData(customerBaseQuery.clone(), CustomerStatus.PROPOSAL),
+      // 谈判客户
+      this.getCustomerStatusData(customerBaseQuery.clone(), CustomerStatus.NEGOTIATION),
+      // 成交客户
+      this.getCustomerStatusData(customerBaseQuery.clone(), CustomerStatus.CLOSED_WON),
+    ]);
+
+    return {
+      leads: {
+        count: leadsCount,
+      },
+      converted: {
+        count: convertedCount,
+      },
+      qualified: qualifiedData,
+      proposal: proposalData,
+      negotiation: negotiationData,
+      closedWon: closedWonData,
+    };
+  }
+
+  /**
+   * 获取指定状态的客户数量和金额
+   */
+  private async getCustomerStatusData(
+    baseQuery: any,
+    status: CustomerStatus,
+  ): Promise<{ count: number; amount: number }> {
+    // 获取客户数量
+    const count = await baseQuery
+      .clone()
+      .andWhere('customer.status = :status', { status })
+      .getCount();
+
+    // 获取该状态客户的预计价值总和
+    const amountResult = await baseQuery
+      .clone()
+      .select('COALESCE(SUM(customer.estimatedValue), 0)', 'total')
+      .andWhere('customer.status = :status', { status })
+      .getRawOne();
+
+    const amount = parseFloat(amountResult?.total || '0');
+
+    return { count, amount };
   }
 
   // 获取指定商机阶段的数量和金额

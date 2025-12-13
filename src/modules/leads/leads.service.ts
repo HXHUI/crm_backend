@@ -875,23 +875,6 @@ export class LeadsService {
           createdBy: operatorMemberId,
         });
         await manager.save(Activity, activity);
-      } else if (customer && !options?.planNextActivity) {
-        // 如果没有勾选下一步计划活动，创建默认的跟进任务
-        activity = manager.create(Activity, {
-          title: `跟进新转化的客户 ${customer.name}`,
-          description: '系统自动创建的跟进任务',
-          type: ActivityType.TASK,
-          status: ActivityStatus.PLANNED,
-          plannedStartTime: new Date(),
-          plannedEndTime: new Date(Date.now() + 24 * 3600 * 1000),
-          relatedToType: RelatedToType.CUSTOMER,
-          relatedToId: customer.id,
-          ownerId: options?.assignToMemberId || operatorMemberId,
-          tenantId,
-          departmentId,
-          createdBy: operatorMemberId,
-        });
-        await manager.save(Activity, activity);
       }
       
       // 创建下一步计划拜访（如果用户勾选了）

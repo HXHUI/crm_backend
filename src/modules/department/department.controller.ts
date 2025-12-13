@@ -22,8 +22,12 @@ export class DepartmentController {
 
   // GET /departments - 获取部门树形结构
   @Get('tree')
-  async getDepartmentTree(@CurrentUser() user: any) {
-    const result = await this.departmentService.getDepartmentTree(user.tenantId);
+  async getDepartmentTree(
+    @CurrentUser() user: any,
+    @Query('includeGroup') includeGroup?: string
+  ) {
+    const includeGroupFlag = includeGroup === 'true' || includeGroup === '1';
+    const result = await this.departmentService.getDepartmentTree(user.tenantId, includeGroupFlag);
     return {
       code: 200,
       message: '获取部门树成功',

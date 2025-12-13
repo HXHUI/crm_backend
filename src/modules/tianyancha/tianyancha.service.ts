@@ -469,7 +469,13 @@ export class TianyanchaService {
       let investments: any[] = [];
       try {
         this.logger.debug(`[getCompanyDetail] 开始获取对外投资，companyId: ${companyId}`);
-        const investmentResponse = await this.axiosInstance.get('/services/open/ic/invest/2.0', {
+        this.logger.debug(`[getCompanyDetail] 对外投资API完整URL: ${this.axiosInstance.defaults.baseURL}/services/open/ic/inverst/2.0`);
+        this.logger.debug(`[getCompanyDetail] 对外投资API参数:`, {
+          keyword: encodeURIComponent(companyId),
+          pageSize: 20,
+          pageNum: 1,
+        });
+        const investmentResponse = await this.axiosInstance.get('/services/open/ic/inverst/2.0', {
           params: {
             keyword: encodeURIComponent(companyId),
             pageSize: 20,
@@ -594,11 +600,41 @@ export class TianyanchaService {
                 shareholderType = item.type === 1 ? '公司' : item.type === 2 ? '人' : '其它';
               }
               
+              // 解析时间戳为日期
+              const parseTimestampToDate = (timestamp: number | string | null | undefined): Date | undefined => {
+                if (!timestamp) return undefined;
+                const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+                if (isNaN(ts) || ts <= 0) return undefined;
+                const date = ts > 1000000000000 ? new Date(ts) : new Date(ts * 1000);
+                return isNaN(date.getTime()) ? undefined : date;
+              };
+              
               const parsedItem = {
                 investedCompany,
                 shareholderType,
                 shareholdingRatio,
                 investmentAmount,
+                // 保存所有原始字段
+                tianyanchaId: item.id,
+                regStatus: item.regStatus,
+                amount: item.amount !== undefined && item.amount !== null ? (typeof item.amount === 'number' ? item.amount : parseFloat(String(item.amount))) : undefined,
+                amountSuffix: item.amountSuffix,
+                paidinTime: item.paidinTime !== undefined && item.paidinTime !== null ? (typeof item.paidinTime === 'number' ? item.paidinTime : parseInt(String(item.paidinTime), 10)) : undefined,
+                establishmentTime: item.estiblishTime !== undefined && item.estiblishTime !== null ? (typeof item.estiblishTime === 'number' ? item.estiblishTime : parseInt(String(item.estiblishTime), 10)) : undefined,
+                establishmentDate: parseTimestampToDate(item.estiblishTime),
+                regCapital: item.regCapital,
+                subscriptionTime: item.subscriptionTime !== undefined && item.subscriptionTime !== null ? (typeof item.subscriptionTime === 'number' ? item.subscriptionTime : parseInt(String(item.subscriptionTime), 10)) : undefined,
+                subscriptionDate: parseTimestampToDate(item.subscriptionTime),
+                type: item.type !== undefined && item.type !== null ? (typeof item.type === 'number' ? item.type : parseInt(String(item.type), 10)) : undefined,
+                percent: item.percent,
+                legalPersonName: item.legalPersonName,
+                businessScope: item.business_scope || item.businessScope,
+                orgType: item.orgType,
+                creditCode: item.creditCode,
+                alias: item.alias,
+                category: item.category,
+                personType: item.personType !== undefined && item.personType !== null ? (typeof item.personType === 'number' ? item.personType : parseInt(String(item.personType), 10)) : undefined,
+                base: item.base,
               };
               
               this.logger.debug(`[getCompanyDetail] 解析后的对外投资项:`, parsedItem);
@@ -632,20 +668,36 @@ export class TianyanchaService {
             pageNum: 1,
           },
         });
+
         
         // 检查错误代码
         if (changeRecordResponse.data?.error_code === 0 && changeRecordResponse.data?.result?.items) {
           changeRecords = changeRecordResponse.data.result.items.map((item: any) => {
-            // 解析时间戳
+            // 解析变更日期
             let changeDate: string | undefined;
             if (item.changeTime) {
-              const ts = typeof item.changeTime === 'string' 
-                ? parseInt(item.changeTime, 10) 
-                : item.changeTime;
-              if (!isNaN(ts) && ts > 0) {
-                const date = ts > 1000000000000 ? new Date(ts) : new Date(ts * 1000);
-                if (!isNaN(date.getTime())) {
-                  changeDate = date.toISOString().split('T')[0];
+              // 如果是日期字符串格式（如 "2025-09-10"），直接使用
+              if (typeof item.changeTime === 'string' && /^\d{4}-\d{2}-\d{2}/.test(item.changeTime)) {
+                // 验证日期格式并提取日期部分（可能包含时间部分）
+                const dateMatch = item.changeTime.match(/^(\d{4}-\d{2}-\d{2})/);
+                if (dateMatch) {
+                  const dateStr = dateMatch[1];
+                  const date = new Date(dateStr);
+                  if (!isNaN(date.getTime()) && date.getFullYear() >= 1900) {
+                    changeDate = dateStr;
+                  }
+                }
+              }
+              // 如果是时间戳（数字或数字字符串）
+              else {
+                const ts = typeof item.changeTime === 'string' 
+                  ? parseInt(item.changeTime, 10) 
+                  : item.changeTime;
+                if (!isNaN(ts) && ts > 0) {
+                  const date = ts > 1000000000000 ? new Date(ts) : new Date(ts * 1000);
+                  if (!isNaN(date.getTime()) && date.getFullYear() >= 1900) {
+                    changeDate = date.toISOString().split('T')[0];
+                  }
                 }
               }
             }

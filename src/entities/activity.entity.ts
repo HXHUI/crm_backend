@@ -8,6 +8,7 @@ export enum ActivityType {
   MEETING = 'meeting',
   TASK = 'task',
   NOTE = 'note',
+  WECHAT = 'wechat',
   DEMO = 'demo',
   PRESENTATION = 'presentation',
   FOLLOW_UP = 'follow_up',

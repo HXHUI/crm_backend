@@ -1,7 +1,12 @@
 -- CRM数据库初始化脚本
 -- 此脚本包含所有表结构的DDL语句（已整合所有迁移更改）
 -- 版本：2025-12-11（整合所有迁移后的最新版本）
--- 注意：在生产环境中，建议使用程序化的数据库初始化工具
+-- 
+-- 注意：
+-- 1. 此脚本中的数据库名称（crm_db）为默认值，实际执行时会从环境变量 DB_DATABASE 读取
+-- 2. 建议使用 setup-database.js 脚本执行，它会自动从配置文件读取数据库配置
+-- 3. 如果直接使用 MySQL 命令行执行，请先手动替换脚本中的 crm_db 为实际数据库名称
+-- 4. 在生产环境中，建议使用程序化的数据库初始化工具
 
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS crm_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -33,6 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(20) NOT NULL COMMENT '手机号码（必填，唯一）',
   avatar VARCHAR(500) COMMENT '头像URL',
   status ENUM('active', 'inactive', 'suspended') DEFAULT 'active' COMMENT '用户状态',
+  is_system_admin BOOLEAN DEFAULT FALSE COMMENT '是否为系统管理员',
   last_login_at TIMESTAMP NULL COMMENT '最后登录时间',
   last_login_ip VARCHAR(45) COMMENT '最后登录IP',
   created_by BIGINT NULL COMMENT '创建者ID（用户ID，系统管理员创建）',
@@ -43,6 +49,7 @@ CREATE TABLE IF NOT EXISTS users (
   INDEX idx_email (email),
   INDEX idx_status (status),
   INDEX idx_deleted_at (deleted_at),
+  INDEX idx_users_is_system_admin (is_system_admin),
   UNIQUE KEY UQ_users_phone (phone),
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -461,6 +468,10 @@ CREATE TABLE IF NOT EXISTS leads (
   city VARCHAR(50) NULL COMMENT '城市',
   district VARCHAR(50) NULL COMMENT '区县',
   address_detail VARCHAR(200) NULL COMMENT '详细地址',
+  unqualified_reason VARCHAR(50) NULL COMMENT '不合格原因（字典key）',
+  unqualified_at DATETIME NULL COMMENT '不合格时间',
+  lost_stage VARCHAR(20) NULL COMMENT '流失阶段',
+  lost_type VARCHAR(20) NULL COMMENT '流失类型（字典key）',
   lastContactedAt DATETIME NULL COMMENT '最后联系时间',
   convertedAt DATETIME NULL COMMENT '转化时间',
   converted_customer_id BIGINT NULL COMMENT '转化的客户ID',
@@ -602,72 +613,7 @@ CREATE TABLE IF NOT EXISTS quote_items (
   CONSTRAINT fk_quote_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='报价明细表';
 
--- 23. 订单表
-CREATE TABLE IF NOT EXISTS orders (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  order_number VARCHAR(100) NOT NULL COMMENT '订单编号',
-  customer_id BIGINT NOT NULL COMMENT '客户ID',
-  contract_id BIGINT NULL COMMENT '合同ID',
-  opportunity_id BIGINT NULL COMMENT '商机ID',
-  order_date DATE NOT NULL COMMENT '下单日期',
-  delivery_date DATE NULL COMMENT '交付日期',
-  total_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '订单金额',
-  total_amount_excl_tax DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '不含税总金额',
-  tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '税金合计',
-  status ENUM('draft','pending_approval','approved','active','rejected','pending','confirmed','processing','shipped','delivered','completed','cancelled') NOT NULL DEFAULT 'draft' COMMENT '订单状态',
-  notes TEXT NULL COMMENT '备注',
-  ownerId BIGINT NULL COMMENT '负责人ID',
-  department_id BIGINT NULL COMMENT '部门ID',
-  tenant_id BIGINT NULL COMMENT '租户ID',
-  created_by BIGINT NULL COMMENT '创建者ID（成员ID）',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL,
-  INDEX idx_orders_tenant_id (tenant_id),
-  INDEX idx_orders_customer_id (customer_id),
-  INDEX idx_orders_contract_id (contract_id),
-  INDEX idx_orders_opportunity_id (opportunity_id),
-  INDEX idx_orders_order_number (order_number),
-  INDEX idx_orders_status (status),
-  INDEX idx_orders_ownerId (ownerId),
-  INDEX idx_orders_department_id (department_id),
-  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_orders_contract FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE SET NULL,
-  CONSTRAINT fk_orders_opportunity FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE SET NULL,
-  CONSTRAINT fk_orders_owner FOREIGN KEY (ownerId) REFERENCES members(id) ON DELETE SET NULL,
-  CONSTRAINT fk_orders_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
-  CONSTRAINT fk_orders_created_by FOREIGN KEY (created_by) REFERENCES members(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单表';
-
--- 24. 订单明细表
-CREATE TABLE IF NOT EXISTS order_items (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  order_id BIGINT NOT NULL COMMENT '订单ID',
-  product_id BIGINT NOT NULL COMMENT '产品ID',
-  quantity DECIMAL(10,2) NOT NULL COMMENT '数量',
-  packaging_unit VARCHAR(50) NULL COMMENT '包装单位（显示用）',
-  packaging_spec VARCHAR(200) NULL COMMENT '包装规格说明（显示用，如：1袋=25kg）',
-  unit_price DECIMAL(10,2) NOT NULL COMMENT '单价',
-  tax_rate DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '税率(%)',
-  unit_price_excl_tax DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '不含税单价',
-  amount DECIMAL(10,2) NOT NULL COMMENT '金额',
-  amount_excl_tax DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '不含税金额',
-  tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '税金',
-  discount DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '折扣(%)',
-  price_components JSON NULL COMMENT '价格组成项（复杂模式）',
-  notes TEXT NULL COMMENT '备注',
-  tenant_id BIGINT NULL COMMENT '租户ID',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP NULL,
-  INDEX idx_order_items_order_id (order_id),
-  INDEX idx_order_items_product_id (product_id),
-  INDEX idx_order_items_tenant_id (tenant_id),
-  CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单明细表';
-
--- 25. 合同表
+-- 23. 合同表
 CREATE TABLE IF NOT EXISTS contracts (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   contract_number VARCHAR(100) NOT NULL COMMENT '合同编号',
@@ -713,7 +659,7 @@ CREATE TABLE IF NOT EXISTS contracts (
   CONSTRAINT fk_contracts_created_by FOREIGN KEY (created_by) REFERENCES members(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='合同表';
 
--- 26. 合同明细表
+-- 24. 合同明细表
 CREATE TABLE IF NOT EXISTS contract_items (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   contract_id BIGINT NOT NULL COMMENT '合同ID',
@@ -741,7 +687,7 @@ CREATE TABLE IF NOT EXISTS contract_items (
   CONSTRAINT fk_contract_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='合同明细表';
 
--- 27. 合同模板表
+-- 25. 合同模板表
 CREATE TABLE IF NOT EXISTS contract_templates (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL COMMENT '模板名称',
@@ -758,7 +704,7 @@ CREATE TABLE IF NOT EXISTS contract_templates (
   INDEX idx_contract_templates_is_enabled (is_enabled)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='合同模板表';
 
--- 28. 合同审批表
+-- 26. 合同审批表
 CREATE TABLE IF NOT EXISTS contract_approvals (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   contract_id BIGINT NOT NULL COMMENT '合同ID',
@@ -778,6 +724,71 @@ CREATE TABLE IF NOT EXISTS contract_approvals (
   CONSTRAINT fk_contract_approvals_contract FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE CASCADE,
   CONSTRAINT fk_contract_approvals_approver FOREIGN KEY (approver_id) REFERENCES members(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='合同审批表';
+
+-- 27. 订单表
+CREATE TABLE IF NOT EXISTS orders (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_number VARCHAR(100) NOT NULL COMMENT '订单编号',
+  customer_id BIGINT NOT NULL COMMENT '客户ID',
+  contract_id BIGINT NULL COMMENT '合同ID',
+  opportunity_id BIGINT NULL COMMENT '商机ID',
+  order_date DATE NOT NULL COMMENT '下单日期',
+  delivery_date DATE NULL COMMENT '交付日期',
+  total_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '订单金额',
+  total_amount_excl_tax DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '不含税总金额',
+  tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '税金合计',
+  status ENUM('draft','pending_approval','approved','active','rejected','pending','confirmed','processing','shipped','delivered','completed','cancelled') NOT NULL DEFAULT 'draft' COMMENT '订单状态',
+  notes TEXT NULL COMMENT '备注',
+  ownerId BIGINT NULL COMMENT '负责人ID',
+  department_id BIGINT NULL COMMENT '部门ID',
+  tenant_id BIGINT NULL COMMENT '租户ID',
+  created_by BIGINT NULL COMMENT '创建者ID（成员ID）',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP NULL,
+  INDEX idx_orders_tenant_id (tenant_id),
+  INDEX idx_orders_customer_id (customer_id),
+  INDEX idx_orders_contract_id (contract_id),
+  INDEX idx_orders_opportunity_id (opportunity_id),
+  INDEX idx_orders_order_number (order_number),
+  INDEX idx_orders_status (status),
+  INDEX idx_orders_ownerId (ownerId),
+  INDEX idx_orders_department_id (department_id),
+  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_orders_contract FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_orders_opportunity FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE SET NULL,
+  CONSTRAINT fk_orders_owner FOREIGN KEY (ownerId) REFERENCES members(id) ON DELETE SET NULL,
+  CONSTRAINT fk_orders_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_orders_created_by FOREIGN KEY (created_by) REFERENCES members(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单表';
+
+-- 28. 订单明细表
+CREATE TABLE IF NOT EXISTS order_items (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL COMMENT '订单ID',
+  product_id BIGINT NOT NULL COMMENT '产品ID',
+  quantity DECIMAL(10,2) NOT NULL COMMENT '数量',
+  packaging_unit VARCHAR(50) NULL COMMENT '包装单位（显示用）',
+  packaging_spec VARCHAR(200) NULL COMMENT '包装规格说明（显示用，如：1袋=25kg）',
+  unit_price DECIMAL(10,2) NOT NULL COMMENT '单价',
+  tax_rate DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '税率(%)',
+  unit_price_excl_tax DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '不含税单价',
+  amount DECIMAL(10,2) NOT NULL COMMENT '金额',
+  amount_excl_tax DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '不含税金额',
+  tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '税金',
+  discount DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '折扣(%)',
+  price_components JSON NULL COMMENT '价格组成项（复杂模式）',
+  notes TEXT NULL COMMENT '备注',
+  tenant_id BIGINT NULL COMMENT '租户ID',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP NULL,
+  INDEX idx_order_items_order_id (order_id),
+  INDEX idx_order_items_product_id (product_id),
+  INDEX idx_order_items_tenant_id (tenant_id),
+  CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单明细表';
 
 -- 29. 拜访记录表
 CREATE TABLE IF NOT EXISTS visits (
@@ -1305,12 +1316,12 @@ SELECT '19. target (目标表)' as table_info UNION ALL
 SELECT '20. products (产品表)' as table_info UNION ALL
 SELECT '21. quotes (报价表)' as table_info UNION ALL
 SELECT '22. quote_items (报价明细表)' as table_info UNION ALL
-SELECT '23. orders (订单表)' as table_info UNION ALL
-SELECT '24. order_items (订单明细表)' as table_info UNION ALL
-SELECT '25. contracts (合同表)' as table_info UNION ALL
-SELECT '26. contract_items (合同明细表)' as table_info UNION ALL
-SELECT '27. contract_templates (合同模板表)' as table_info UNION ALL
-SELECT '28. contract_approvals (合同审批表)' as table_info UNION ALL
+SELECT '23. contracts (合同表)' as table_info UNION ALL
+SELECT '24. contract_items (合同明细表)' as table_info UNION ALL
+SELECT '25. contract_templates (合同模板表)' as table_info UNION ALL
+SELECT '26. contract_approvals (合同审批表)' as table_info UNION ALL
+SELECT '27. orders (订单表)' as table_info UNION ALL
+SELECT '28. order_items (订单明细表)' as table_info UNION ALL
 SELECT '29. visits (拜访记录表)' as table_info UNION ALL
 SELECT '30. customer_requirements (客户需求表)' as table_info UNION ALL
 SELECT '31. customer_profiles (客户合作习惯与信用信息扩展表)' as table_info UNION ALL

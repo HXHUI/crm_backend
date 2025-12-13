@@ -56,6 +56,27 @@ export interface TianyanchaCompanyDetail {
     shareholderType?: string;
     shareholdingRatio?: number;
     investmentAmount?: number;
+    // 天眼查原始字段
+    tianyanchaId?: number;
+    regStatus?: string;
+    amount?: number;
+    amountSuffix?: string;
+    paidinTime?: number;
+    establishmentTime?: number;
+    establishmentDate?: Date;
+    regCapital?: string;
+    subscriptionTime?: number;
+    subscriptionDate?: Date;
+    type?: number;
+    percent?: string;
+    legalPersonName?: string;
+    businessScope?: string;
+    orgType?: string;
+    creditCode?: string;
+    alias?: string;
+    category?: string;
+    personType?: number;
+    base?: string;
   }>;
 
   // 变更记录

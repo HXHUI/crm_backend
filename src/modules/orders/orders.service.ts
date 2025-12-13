@@ -31,7 +31,6 @@ export interface CreateOrderItemDto {
 export interface CreateOrderDto {
   orderNumber?: string;  // 可选，如果不提供则自动生成
   customerId: number;
-  quoteId?: number;
   contractId?: number;
   opportunityId?: number;
   orderDate: Date;
@@ -44,7 +43,6 @@ export interface CreateOrderDto {
 export interface UpdateOrderDto {
   orderNumber?: string;
   customerId?: number;
-  quoteId?: number;
   contractId?: number;
   opportunityId?: number;
   orderDate?: Date;
@@ -57,7 +55,6 @@ export interface UpdateOrderDto {
 export interface QueryOrderDto {
   search?: string;
   customerId?: number;
-  quoteId?: number;
   opportunityId?: number;
   status?: OrderStatus;
   page?: number;
@@ -99,16 +96,6 @@ export class OrdersService {
     });
     if (!customer) {
       throw new NotFoundException('客户不存在');
-    }
-
-    // 验证报价是否存在（如果提供）
-    if (createOrderDto.quoteId) {
-      const quote = await this.quoteRepository.findOne({
-        where: { id: createOrderDto.quoteId, tenantId },
-      });
-      if (!quote) {
-        throw new NotFoundException('报价不存在');
-      }
     }
 
     // 验证合同是否存在（如果提供）
@@ -180,7 +167,6 @@ export class OrdersService {
       const order = this.orderRepository.create({
         orderNumber,
         customerId: createOrderDto.customerId,
-        quoteId: createOrderDto.quoteId,
         contractId: createOrderDto.contractId,
         opportunityId: createOrderDto.opportunityId,
         orderDate: createOrderDto.orderDate,
@@ -226,7 +212,7 @@ export class OrdersService {
       // 返回完整的订单信息
       return await this.orderRepository.findOne({
         where: { id: savedOrder.id },
-        relations: ['customer', 'quote', 'opportunity', 'items', 'items.product'],
+        relations: ['customer', 'opportunity', 'items', 'items.product'],
       });
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -259,11 +245,10 @@ export class OrdersService {
       notes: item.notes,
     }));
 
-    // 创建订单
+    // 创建订单（不关联报价）
     const createOrderDto: CreateOrderDto = {
       orderNumber,
       customerId: quote.customerId,
-      quoteId: quote.id,
       opportunityId: quote.opportunityId,
       orderDate: new Date(),
       status: OrderStatus.DRAFT,
@@ -315,11 +300,10 @@ export class OrdersService {
   }
 
   async findAllOrders(query: QueryOrderDto, memberId: number, tenantId: number) {
-    const { search, customerId, quoteId, opportunityId, status, page = 1, limit = 50 } = query;
+    const { search, customerId, opportunityId, status, page = 1, limit = 50 } = query;
 
     const queryBuilder = this.orderRepository.createQueryBuilder('order')
       .leftJoinAndSelect('order.customer', 'customer')
-      .leftJoinAndSelect('order.quote', 'quote')
       .leftJoinAndSelect('order.creator', 'creator')
       .leftJoinAndSelect('creator.user', 'creatorUser')
       .leftJoinAndSelect('order.contract', 'contract')
@@ -339,11 +323,6 @@ export class OrdersService {
     // 客户筛选
     if (customerId) {
       queryBuilder.andWhere('order.customerId = :customerId', { customerId });
-    }
-
-    // 报价筛选
-    if (quoteId) {
-      queryBuilder.andWhere('order.quoteId = :quoteId', { quoteId });
     }
 
     // 商机筛选
@@ -397,7 +376,7 @@ export class OrdersService {
   async findOrderById(id: number, memberId: number, tenantId: number) {
     const order = await this.orderRepository.findOne({
       where: { id, tenantId },
-      relations: ['customer', 'quote', 'contract', 'opportunity', 'items', 'items.product', 'owner'],
+      relations: ['customer', 'contract', 'opportunity', 'items', 'items.product', 'owner'],
     });
 
     if (!order) {

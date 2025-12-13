@@ -24,7 +24,7 @@ npm run db:init
 curl -X POST http://localhost:3000/api/v1/database/init
 
 # 方法3: 使用SQL脚本（传统方式）
-mysql -u root -p < scripts/init-db.sql
+mysql -u root -p < src/database/init-db.sql
 ```
 
 ### 2. 查看数据库状态

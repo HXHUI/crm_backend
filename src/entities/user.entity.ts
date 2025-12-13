@@ -34,6 +34,14 @@ export class User extends BaseEntity {
   })
   status: UserStatus;
 
+  @Column({ 
+    name: 'is_system_admin', 
+    type: 'boolean', 
+    default: false, 
+    comment: '是否为系统管理员' 
+  })
+  isSystemAdmin: boolean;
+
   @Column({ name: 'last_login_at', nullable: true, comment: '最后登录时间' })
   lastLoginAt?: Date;
 

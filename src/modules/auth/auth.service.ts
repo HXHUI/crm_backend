@@ -62,6 +62,15 @@ export class AuthService {
       throw new UnauthorizedException('密码错误');
     }
 
+    // 如果是系统管理员，不需要检查租户
+    if (user.isSystemAdmin) {
+      return {
+        userId: user.id,
+        user,
+        isSystemAdmin: true,
+      };
+    }
+
     // 如果指定了租户，检查用户是否属于该租户
     if (tenantId) {
       const tenantIdNum = typeof tenantId === 'string' ? parseInt(tenantId, 10) : tenantId;
@@ -100,7 +109,7 @@ export class AuthService {
       username,
       ...(userData.memberId && { memberId: userData.memberId }),
       ...(userData.tenantId && { tenantId: userData.tenantId }),
-      
+      isSystemAdmin: userData.isSystemAdmin || false,
     };
 
     const token = this.jwtService.sign(payload);
@@ -111,6 +120,17 @@ export class AuthService {
     } catch (redisError) {
       console.warn('Redis连接失败，跳过token存储:', redisError.message);
       // Redis连接失败不影响登录流程
+    }
+
+    // 如果是系统管理员，返回不同的数据结构
+    if (userData.isSystemAdmin) {
+      return {
+        access_token: token,
+        user: userData.user,
+        member: null,
+        tenant: null,
+        isSystemAdmin: true,
+      };
     }
 
     // 获取成员和租户信息
@@ -124,6 +144,7 @@ export class AuthService {
         user: userData.user,
         member: member,
         tenant: member?.tenant || null,
+        isSystemAdmin: false,
       };
   }
 
