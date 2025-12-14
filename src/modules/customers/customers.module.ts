@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
@@ -11,9 +11,13 @@ import { MemberDepartment } from '../../entities/member-department.entity';
 import { Department } from '../../entities/department.entity';
 import { CustomerProfile } from '../../entities/customer-profile.entity';
 import { CustomerCreditHistory } from '../../entities/customer-credit-history.entity';
+import { CustomFieldConfigsModule } from '../custom-field-configs/custom-field-configs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Customer, Contact, Member, Activity, Tenant, MemberDepartment, Department, CustomerProfile, CustomerCreditHistory])],
+  imports: [
+    TypeOrmModule.forFeature([Customer, Contact, Member, Activity, Tenant, MemberDepartment, Department, CustomerProfile, CustomerCreditHistory]),
+    forwardRef(() => CustomFieldConfigsModule),
+  ],
   controllers: [CustomersController],
   providers: [CustomersService],
   exports: [CustomersService],

@@ -81,6 +81,9 @@ export class Customer extends BaseEntity {
   @Column({ name: 'address_detail', nullable: true, comment: '详细地址' })
   addressDetail?: string;
 
+  @Column({ name: 'custom_fields', type: 'json', nullable: true, comment: '扩展字段值（JSON格式，key为field_code，value为字段值）' })
+  customFields?: Record<string, any>;
+
   // 关联关系
   @Column({ name: 'ownerId', type: 'bigint', nullable: true, comment: '所属成员ID' })
   ownerId?: number;

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, LessThanOrEqual, IsNull, Not, In } from 'typeorm';
 import { Customer, CustomerStatus, CustomerType } from '../../entities/customer.entity';
@@ -12,6 +12,8 @@ import { CustomerProfile } from '../../entities/customer-profile.entity';
 import { CustomerCreditHistory } from '../../entities/customer-credit-history.entity';
 import { getConfigFromObject } from '../../common/utils/tenant-config.util';
 import { CreateCustomerProfileDto, UpdateCustomerProfileDto, UpdateCreditInfoDto } from './dto/customer-profile.dto';
+import { CustomFieldConfigsService } from '../custom-field-configs/custom-field-configs.service';
+import { EntityType } from '../../entities/custom-field-config.entity';
 
 export interface CreateCustomerDto {
   name: string;
@@ -27,6 +29,7 @@ export interface CreateCustomerDto {
   source?: string;
   level?: string;
   ownerId?: number; // 负责人ID，如果有则为私海，无则为公海
+  customFields?: Record<string, any>; // 扩展字段
 }
 
 export interface UpdateCustomerDto {
@@ -42,6 +45,7 @@ export interface UpdateCustomerDto {
   estimatedValue?: number;
   source?: string;
   level?: string;
+  customFields?: Record<string, any>; // 扩展字段
 }
 
 export interface CreateContactDto {
@@ -91,6 +95,8 @@ export class CustomersService {
     private readonly customerProfileRepository: Repository<CustomerProfile>,
     @InjectRepository(CustomerCreditHistory)
     private readonly customerCreditHistoryRepository: Repository<CustomerCreditHistory>,
+    @Inject(forwardRef(() => CustomFieldConfigsService))
+    private readonly customFieldConfigsService?: CustomFieldConfigsService,
   ) {}
 
   async createCustomer(createCustomerDto: CreateCustomerDto, memberId: number, tenantId: number, departmentId?: number) {
@@ -109,12 +115,26 @@ export class CustomersService {
       finalOwnerId = memberId;
     }
 
+    // 验证扩展字段
+    if (createCustomerDto.customFields && this.customFieldConfigsService) {
+      const validation = await this.customFieldConfigsService.validateCustomFields(
+        tenantId,
+        EntityType.CUSTOMER,
+        createCustomerDto.customFields
+      );
+      if (!validation.valid) {
+        throw new BadRequestException(`扩展字段验证失败: ${validation.errors.map(e => e.message).join(', ')}`);
+      }
+    }
+
+    const { customFields, ...customerData } = createCustomerDto;
     const customer = this.customerRepository.create({
-      ...createCustomerDto,
+      ...customerData,
       ownerId: finalOwnerId,
       tenantId,
       departmentId,
       createdBy: memberId,
+      customFields,
     });
 
     return await this.customerRepository.save(customer);
@@ -290,6 +310,19 @@ export class CustomersService {
       throw new NotFoundException('客户不存在');
     }
 
+    // 获取扩展字段配置
+    if (this.customFieldConfigsService) {
+      const fieldConfigs = await this.customFieldConfigsService.getFieldConfigsByEntityType(
+        tenantId,
+        EntityType.CUSTOMER
+      );
+      // 将扩展字段配置附加到返回对象
+      return {
+        ...customer,
+        customFieldConfigs: fieldConfigs,
+      };
+    }
+
     return customer;
   }
 
@@ -307,10 +340,56 @@ export class CustomersService {
   }
 
   async updateCustomer(id: number, updateCustomerDto: UpdateCustomerDto, memberId: number, tenantId: number) {
-    const customer = await this.findCustomerById(id, memberId, tenantId);
+    const customer = await this.customerRepository.findOne({
+      where: { id, tenantId },
+    });
 
-    Object.assign(customer, updateCustomerDto);
+    if (!customer) {
+      throw new NotFoundException('客户不存在');
+    }
+
+    // 处理扩展字段
+    if (updateCustomerDto.customFields !== undefined) {
+      // 验证扩展字段
+      if (this.customFieldConfigsService) {
+        const validation = await this.customFieldConfigsService.validateCustomFields(
+          tenantId,
+          EntityType.CUSTOMER,
+          updateCustomerDto.customFields
+        );
+        if (!validation.valid) {
+          throw new BadRequestException(`扩展字段验证失败: ${validation.errors.map(e => e.message).join(', ')}`);
+        }
+      }
+      // 合并扩展字段（保留未更新的字段）
+      customer.customFields = this.mergeCustomFields(customer.customFields || {}, updateCustomerDto.customFields);
+    }
+
+    // 更新其他字段
+    const { customFields, ...otherFields } = updateCustomerDto;
+    Object.assign(customer, otherFields);
+
     return await this.customerRepository.save(customer);
+  }
+
+  /**
+   * 合并扩展字段（保留未更新的字段）
+   */
+  private mergeCustomFields(existing: Record<string, any>, updates: Record<string, any>): Record<string, any> {
+    return {
+      ...existing,
+      ...updates,
+    };
+  }
+
+  /**
+   * 验证扩展字段值
+   */
+  async validateCustomFields(tenantId: number, customFields: Record<string, any>): Promise<{ valid: boolean; errors: Array<{ field: string; message: string }> }> {
+    if (!this.customFieldConfigsService) {
+      return { valid: true, errors: [] };
+    }
+    return await this.customFieldConfigsService.validateCustomFields(tenantId, EntityType.CUSTOMER, customFields);
   }
 
   async deleteCustomer(id: number, memberId: number, tenantId: number) {

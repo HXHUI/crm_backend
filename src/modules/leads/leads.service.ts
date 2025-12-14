@@ -567,6 +567,8 @@ export class LeadsService {
       .createQueryBuilder('lead')
       .leftJoinAndSelect('lead.owner', 'owner')
       .leftJoinAndSelect('owner.user', 'user')
+      .leftJoinAndSelect('lead.creator', 'creator')
+      .leftJoinAndSelect('creator.user', 'creatorUser')
       .where('lead.tenantId = :tenantId', { tenantId })
       .andWhere('lead.deletedAt IS NULL') // 排除已删除的记录
       .orderBy('lead.createdAt', 'DESC');
