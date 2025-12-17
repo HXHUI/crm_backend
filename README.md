@@ -95,7 +95,7 @@ cp .env.example .env
 CREATE DATABASE crm_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 4. 运行应用
+### 4. 运行应用（本地）
 
 开发模式：
 ```bash
@@ -106,6 +106,155 @@ npm run start:dev
 ```bash
 npm run build
 npm run start:prod
+```
+
+## 生产环境部署（CentOS）
+
+### 1. 安装基础环境
+
+在 CentOS 服务器上执行（需要有 sudo 权限）：
+
+```bash
+sudo yum update -y
+
+# 安装 Git
+sudo yum install -y git
+
+# 安装 Node.js（示例使用 20.x，可根据需要调整版本）
+curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+sudo yum install -y nodejs
+
+# 如需在同一台机器安装 MySQL / Redis，可参考：
+# sudo yum install -y mysql-server redis
+# sudo systemctl enable --now mysqld
+# sudo systemctl enable --now redis
+```
+
+### 2. 获取代码并安装依赖
+
+```bash
+cd /opt
+git clone http://git.processforce.cn/Roletask/crm_backend.git
+cd crm_backend
+
+npm install
+```
+
+### 3. 配置环境变量
+
+```bash
+cp .env.example .env
+vi .env
+```
+
+需要根据实际环境修改的关键配置包括（示例）：
+
+- **数据库配置**
+  - `DB_HOST=127.0.0.1`
+  - `DB_PORT=3306`
+  - `DB_USER=your_db_user`
+  - `DB_PASSWORD=your_db_password`
+  - `DB_NAME=crm_db`
+- **Redis 配置**
+  - `REDIS_HOST=127.0.0.1`
+  - `REDIS_PORT=6379`
+  - `REDIS_PASSWORD=`（如有密码则填写）
+  - `REDIS_DB=0`
+- **JWT 配置**
+  - `JWT_SECRET=一串足够长的随机字符串`
+- **应用端口**
+  - `APP_PORT=3000`（或其他端口）
+- **第三方接口（如天眼查）**
+  - `TIANYANCHA_API_KEY=生产环境天眼查 API 密钥（如启用此功能）`
+  - `TIANYANCHA_API_URL=https://open.api.tianyancha.com`
+
+### 4. 初始化 / 迁移数据库
+
+首次上线时，如果尚未初始化数据库，可以按需执行（根据你的环境选择）：
+
+```bash
+# 如需脚本创建数据库（DBA 已建库可跳过）
+npm run db:create
+
+# 初始化基础表结构
+npm run db:setup
+
+# 运行迁移（之后每次升级只需这一步）
+npm run db:migrate
+```
+
+### 5. 构建并验证应用
+
+```bash
+npm run build
+npm run start:prod
+```
+
+此时可以在浏览器或接口工具中访问：
+
+- `http://<服务器IP>:<APP_PORT>/api/v1/auth/login` 等接口  
+确认功能正常后，`Ctrl + C` 结束前台进程，改用进程守护工具运行。
+
+### 6. 使用 PM2 进行进程守护
+
+```bash
+sudo npm install -g pm2
+
+cd /opt/crm_backend
+pm2 start dist/main.js --name crm-backend
+
+pm2 status
+pm2 logs crm-backend
+```
+
+配置开机自启：
+
+```bash
+pm2 save
+pm2 startup systemd
+# 按提示再执行一条 sudo 命令以完成配置
+```
+
+发布新版本时，通常流程为：
+
+```bash
+cd /opt/crm_backend
+git pull
+npm install
+npm run build
+pm2 restart crm-backend
+```
+
+### 7. （可选）Nginx 反向代理
+
+如果需要通过 80/443 对外提供服务，可以在同一台服务器上安装并配置 Nginx：
+
+```bash
+sudo yum install -y nginx
+sudo systemctl enable --now nginx
+```
+
+示例 Nginx 配置（将域名流量反向代理到应用端口，例如 3000）：
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+修改配置后检查并重载 Nginx：
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
 ## API 文档
