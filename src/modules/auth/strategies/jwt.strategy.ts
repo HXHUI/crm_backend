@@ -61,12 +61,88 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       
       // 从成员信息中获取tenantId
       actualTenantId = member.tenantId;
+      console.log('JWT validate - 从成员获取 tenantId:', {
+        memberId: memberId,
+        memberTenantId: member.tenantId,
+        memberTenantIdType: typeof member.tenantId
+      });
     } else if (user.members && user.members.length > 0) {
       // 如果没有指定memberId，使用第一个成员的tenantId
       actualTenantId = user.members[0].tenantId;
+      console.log('JWT validate - 从用户成员获取 tenantId:', {
+        firstMemberTenantId: user.members[0].tenantId,
+        firstMemberTenantIdType: typeof user.members[0].tenantId
+      });
     }
 
-    console.log('JWT validate - userId:', userId, 'tenantId:', actualTenantId, 'memberId:', memberId);
+    // 验证 tenantId 是否有效
+    if (actualTenantId === null || actualTenantId === undefined) {
+      console.error('JWT validate - tenantId is null or undefined:', {
+        userId: userId,
+        memberId: memberId,
+        tenantId: actualTenantId,
+        payloadTenantId: tenantId
+      });
+      throw new UnauthorizedException('无法确定租户信息，请重新登录');
+    }
+
+    // 验证 tenantId 是否为有效的数字
+    if (typeof actualTenantId === 'number') {
+      if (isNaN(actualTenantId) || !isFinite(actualTenantId)) {
+        console.error('JWT validate - tenantId is NaN or not finite:', {
+          userId: userId,
+          memberId: memberId,
+          tenantId: actualTenantId,
+          isNaN: isNaN(actualTenantId),
+          isFinite: isFinite(actualTenantId)
+        });
+        throw new UnauthorizedException('租户ID无效，请重新登录');
+      }
+      if (actualTenantId <= 0 || !Number.isInteger(actualTenantId)) {
+        console.error('JWT validate - tenantId is not a positive integer:', {
+          userId: userId,
+          memberId: memberId,
+          tenantId: actualTenantId
+        });
+        throw new UnauthorizedException('租户ID无效，请重新登录');
+      }
+    } else if (typeof actualTenantId === 'string') {
+      // 如果是字符串，尝试转换为数字
+      if (actualTenantId.trim() === '' || actualTenantId.toLowerCase() === 'nan' || actualTenantId.toLowerCase() === 'null') {
+        console.error('JWT validate - tenantId is invalid string:', {
+          userId: userId,
+          memberId: memberId,
+          tenantId: actualTenantId
+        });
+        throw new UnauthorizedException('租户ID无效，请重新登录');
+      }
+      const parsedTenantId = parseInt(actualTenantId, 10);
+      if (isNaN(parsedTenantId) || !isFinite(parsedTenantId) || parsedTenantId <= 0) {
+        console.error('JWT validate - parsed tenantId is invalid:', {
+          userId: userId,
+          memberId: memberId,
+          originalTenantId: actualTenantId,
+          parsedTenantId: parsedTenantId
+        });
+        throw new UnauthorizedException('租户ID格式错误，请重新登录');
+      }
+      actualTenantId = parsedTenantId;
+    } else {
+      console.error('JWT validate - tenantId has invalid type:', {
+        userId: userId,
+        memberId: memberId,
+        tenantId: actualTenantId,
+        tenantIdType: typeof actualTenantId
+      });
+      throw new UnauthorizedException('租户ID类型错误，请重新登录');
+    }
+
+    console.log('JWT validate - 最终结果:', {
+      userId: userId,
+      tenantId: actualTenantId,
+      tenantIdType: typeof actualTenantId,
+      memberId: memberId
+    });
 
     // 从请求头获取当前部门ID
     const departmentIdHeader = req?.headers?.['x-current-department-id'];

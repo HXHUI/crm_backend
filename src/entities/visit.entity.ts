@@ -105,6 +105,9 @@ export class Visit extends BaseEntity {
   })
   purpose?: VisitPurpose;
 
+  @Column({ type: 'json', nullable: true, comment: '拜访准备（字典值数组）' })
+  preparation?: string[];
+
   @Column({ type: 'text', nullable: true, comment: '拜访结果/反馈' })
   result?: string;
 

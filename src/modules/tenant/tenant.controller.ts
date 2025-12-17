@@ -22,6 +22,7 @@ import {
   TenantProductConfig,
 } from './tenant.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { TenantOwnerGuard } from '../../common/guards/tenant-owner.guard';
 
 @Controller('tenants')
 @UseGuards(AuthGuard('jwt'))
@@ -62,17 +63,6 @@ export class TenantController {
     return {
       code: 200,
       message: '获取成员列表成功',
-      data: result
-    };
-  }
-
-  // GET /tenants/:id - 获取特定租户详情
-  @Get(':id')
-  async getTenant(@Param('id') id: string) {
-    const result = await this.tenantService.getTenantById(parseInt(id, 10));
-    return {
-      code: 200,
-      message: '获取租户详情成功',
       data: result
     };
   }
@@ -268,6 +258,157 @@ export class TenantController {
     return {
       code: 200,
       message: '预览产品编码成功',
+      data: result,
+    };
+  }
+
+  // ========== 租户管理员管理 ==========
+  // GET /tenants/admins - 获取当前租户的租户管理员列表
+  @Get('admins')
+  @UseGuards(TenantOwnerGuard)
+  async getCurrentTenantAdmins(
+    @CurrentUser() user: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 50,
+    @Query('search') search?: string,
+  ) {
+    if (!user || user.tenantId === null || user.tenantId === undefined) {
+      throw new ForbiddenException('未获取到租户信息，请重新登录');
+    }
+    
+    // 安全地解析 tenantId
+    let tenantId: number;
+    if (typeof user.tenantId === 'string') {
+      if (user.tenantId.trim() === '' || user.tenantId.toLowerCase() === 'nan' || user.tenantId.toLowerCase() === 'null') {
+        throw new BadRequestException('租户ID无效');
+      }
+      tenantId = parseInt(user.tenantId, 10);
+      if (isNaN(tenantId)) {
+        throw new BadRequestException('租户ID格式错误');
+      }
+    } else if (typeof user.tenantId === 'number') {
+      tenantId = user.tenantId;
+      if (isNaN(tenantId)) {
+        throw new BadRequestException('租户ID格式错误');
+      }
+    } else {
+      throw new BadRequestException('租户ID格式错误');
+    }
+    
+    // 验证 tenantId 是否为正整数
+    if (tenantId <= 0 || !Number.isInteger(tenantId) || isNaN(tenantId) || !isFinite(tenantId)) {
+      console.error('getCurrentTenantAdmins: tenantId validation failed', {
+        tenantId: tenantId,
+        isNaN: isNaN(tenantId),
+        isFinite: isFinite(tenantId),
+        isInteger: Number.isInteger(tenantId),
+        userTenantId: user.tenantId,
+        userTenantIdType: typeof user.tenantId
+      });
+      throw new BadRequestException('租户ID必须是有效的正整数');
+    }
+    
+    console.log('getCurrentTenantAdmins: 准备调用 service', {
+      tenantId: tenantId,
+      tenantIdType: typeof tenantId,
+      page: page,
+      limit: limit,
+      search: search
+    });
+    
+    const result = await this.tenantService.getTenantAdmins(tenantId, page, limit, search);
+    return {
+      code: 200,
+      message: '获取租户管理员列表成功',
+      data: result,
+    };
+  }
+
+  // GET /tenants/:id - 获取特定租户详情
+  @Get(':id')
+  async getTenant(@Param('id') id: string) {
+    const result = await this.tenantService.getTenantById(parseInt(id, 10));
+    return {
+      code: 200,
+      message: '获取租户详情成功',
+      data: result
+    };
+  }
+
+  // POST /tenants/admins - 添加租户管理员（只有租户负责人可以操作）
+  @Post('admins')
+  @UseGuards(TenantOwnerGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async addTenantAdmin(
+    @CurrentUser() user: any,
+    @Body() body: { memberId: string },
+  ) {
+    if (!user || !user.tenantId) {
+      throw new ForbiddenException('未获取到租户信息，请重新登录');
+    }
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const memberId = parseInt(body.memberId, 10);
+    
+    if (isNaN(tenantId) || isNaN(memberId)) {
+      throw new BadRequestException('参数格式错误');
+    }
+
+    const result = await this.tenantService.addTenantAdmin(tenantId, memberId, userId);
+    return {
+      code: 201,
+      message: '添加租户管理员成功',
+      data: result,
+    };
+  }
+
+  // DELETE /tenants/admins/:memberId - 移除租户管理员权限（只有租户负责人可以操作）
+  @Delete('admins/:memberId')
+  @UseGuards(TenantOwnerGuard)
+  @HttpCode(HttpStatus.OK)
+  async removeTenantAdmin(
+    @CurrentUser() user: any,
+    @Param('memberId') memberId: string,
+  ) {
+    if (!user || !user.tenantId) {
+      throw new ForbiddenException('未获取到租户信息，请重新登录');
+    }
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const userId = typeof user.userId === 'string' ? parseInt(user.userId, 10) : user.userId;
+    const memberIdNum = parseInt(memberId, 10);
+    
+    if (isNaN(tenantId) || isNaN(memberIdNum)) {
+      throw new BadRequestException('参数格式错误');
+    }
+
+    await this.tenantService.removeTenantAdmin(tenantId, memberIdNum, userId);
+    return {
+      code: 200,
+      message: '移除租户管理员权限成功',
+    };
+  }
+
+  // GET /tenants/admins/available-members - 获取可用的成员列表（用于添加管理员时选择）
+  @Get('admins/available-members')
+  @UseGuards(TenantOwnerGuard)
+  async getAvailableMembersForAdmin(
+    @CurrentUser() user: any,
+    @Query('search') search?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 50,
+  ) {
+    if (!user || !user.tenantId) {
+      throw new ForbiddenException('未获取到租户信息，请重新登录');
+    }
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    if (isNaN(tenantId)) {
+      throw new BadRequestException('租户ID格式错误');
+    }
+
+    const result = await this.tenantService.getAvailableMembersForAdmin(tenantId, search, page, limit);
+    return {
+      code: 200,
+      message: '获取可用成员列表成功',
       data: result,
     };
   }

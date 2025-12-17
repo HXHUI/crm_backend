@@ -68,6 +68,23 @@ export class CustomerRequirementsController {
     };
   }
 
+  @Get('opportunity/:opportunityId')
+  async getRequirementsByOpportunity(
+    @Param('opportunityId', ParseIntPipe) opportunityId: number,
+    @CurrentUser() user: any,
+  ) {
+    const requirements = await this.requirementsService.getRequirementsByOpportunity(
+      opportunityId,
+      user.memberId,
+      user.tenantId,
+    );
+    return {
+      code: 200,
+      message: '获取商机需求成功',
+      data: requirements,
+    };
+  }
+
   @Get(':id')
   async findOneRequirement(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
     const requirement = await this.requirementsService.findOneRequirement(id, user.memberId, user.tenantId);

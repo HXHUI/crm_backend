@@ -1,6 +1,5 @@
 import { Controller, Get } from '@nestjs/common'
-import { INDUSTRY_OPTIONS } from './constants/industry'
-import { SOURCE_OPTIONS } from './constants/source'
+import { DictionaryService } from '../modules/dictionary/dictionary.service'
 import { UNQUALIFIED_REASON_OPTIONS } from './constants/unqualified-reason'
 import { LOST_TYPE_OPTIONS } from './constants/lost-type'
 import * as fs from 'fs'
@@ -8,14 +7,44 @@ import * as path from 'path'
 
 @Controller('common')
 export class CommonController {
+  constructor(private readonly dictionaryService: DictionaryService) {}
+
   @Get('industries')
-  getIndustries() {
-    return { code: 200, message: 'OK', data: INDUSTRY_OPTIONS }
+  async getIndustries() {
+    try {
+      // 从字典表获取行业数据（系统级，tenantId = null）
+      const items = await this.dictionaryService.findItems(null, 'industry')
+      return {
+        code: 200,
+        message: 'OK',
+        data: items.map(item => ({
+          key: item.value,
+          label: item.label,
+        })),
+      }
+    } catch (error) {
+      // 如果字典表没有数据，返回空数组（兼容性处理）
+      return { code: 200, message: 'OK', data: [] }
+    }
   }
 
   @Get('sources')
-  getSources() {
-    return { code: 200, message: 'OK', data: SOURCE_OPTIONS }
+  async getSources() {
+    try {
+      // 从字典表获取来源数据（系统级，tenantId = null）
+      const items = await this.dictionaryService.findItems(null, 'lead_source')
+      return {
+        code: 200,
+        message: 'OK',
+        data: items.map(item => ({
+          key: item.value,
+          label: item.label,
+        })),
+      }
+    } catch (error) {
+      // 如果字典表没有数据，返回空数组（兼容性处理）
+      return { code: 200, message: 'OK', data: [] }
+    }
   }
 
   @Get('unqualified-reasons')

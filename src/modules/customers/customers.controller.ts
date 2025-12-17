@@ -154,6 +154,47 @@ export class CustomersController {
     };
   }
 
+  // 批量领取客户（从公海转入私海）
+  @Post('claim')
+  @HttpCode(HttpStatus.OK)
+  async claimCustomers(@Body() body: { customerIds: number[] | string[] }, @CurrentUser() user: any) {
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const customerIds = body.customerIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
+    const data = await this.customersService.claimCustomers(customerIds, tenantId, memberId);
+    return { code: 200, message: '领取客户成功', data };
+  }
+
+  // 批量分配客户（从公海分配给用户，只有部门负责人可以操作）
+  @Post('assign')
+  @HttpCode(HttpStatus.OK)
+  async assignCustomers(
+    @Body() body: { customerIds: number[] | string[]; newOwnerId: string | number },
+    @CurrentUser() user: any,
+  ) {
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const customerIds = body.customerIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
+    const newOwnerId = typeof body.newOwnerId === 'string' ? parseInt(body.newOwnerId, 10) : body.newOwnerId;
+    const data = await this.customersService.assignCustomers(customerIds, newOwnerId, tenantId, memberId);
+    return { code: 200, message: '分配客户成功', data };
+  }
+
+  // 批量转移客户（从有负责人转移给另一个负责人）
+  @Post('transfer')
+  @HttpCode(HttpStatus.OK)
+  async transferCustomers(
+    @Body() body: { customerIds: number[] | string[]; newOwnerId: string | number },
+    @CurrentUser() user: any,
+  ) {
+    const tenantId = typeof user.tenantId === 'string' ? parseInt(user.tenantId, 10) : user.tenantId;
+    const memberId = typeof user.memberId === 'string' ? parseInt(user.memberId, 10) : user.memberId;
+    const customerIds = body.customerIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
+    const newOwnerId = typeof body.newOwnerId === 'string' ? parseInt(body.newOwnerId, 10) : body.newOwnerId;
+    const data = await this.customersService.transferCustomers(customerIds, newOwnerId, tenantId, memberId);
+    return { code: 200, message: '转移客户成功', data };
+  }
+
   @Post(':customerId/contacts')
   async createContact(
     @Param('customerId') customerId: string,

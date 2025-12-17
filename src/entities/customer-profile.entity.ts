@@ -39,12 +39,6 @@ export class CustomerProfile extends BaseEntity {
   @Column({ name: 'shipping_methods', type: 'json', nullable: true, comment: '货运方式数组：专车/物流/自提/快递' })
   shippingMethods?: string[];
 
-  @Column({ name: 'main_category_ids', type: 'json', nullable: true, comment: '主要采购品类ID数组（关联dict_items.id）' })
-  mainCategoryIds?: number[];
-
-  @Column({ name: 'competitor_brands', type: 'json', nullable: true, comment: '意向竞品品牌数组' })
-  competitorBrands?: string[];
-
   @Column({ name: 'credit_limit', type: 'decimal', precision: 10, scale: 2, nullable: true, comment: '信用额度（元）' })
   creditLimit?: number;
 
@@ -59,5 +53,57 @@ export class CustomerProfile extends BaseEntity {
 
   @Column({ name: 'tenant_id', type: 'bigint', nullable: true, comment: '租户ID' })
   tenantId?: number;
+
+  @Column({
+    name: 'fund_status',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+    comment: '资金状况：abundant(充裕)/normal(一般)/tight(紧张)',
+  })
+  fundStatus?: string;
+
+  @Column({
+    name: 'business_years',
+    type: 'int',
+    nullable: true,
+    comment: '经营年限（年）',
+  })
+  businessYears?: number;
+
+  @Column({
+    name: 'industry_reputation',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+    comment: '行业口碑：good(优)/fair(良)/bad(差)',
+  })
+  industryReputation?: string;
+
+  @Column({
+    name: 'growth_potential',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+    comment: '发展潜力：high(大)/medium(中)/low(小)',
+  })
+  growthPotential?: string;
+
+  @Column({
+    name: 'owner_type',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+    comment: '老板类型：aggressive(开拓型)/conservative(保守型)',
+  })
+  ownerType?: string;
+
+  @Column({
+    name: 'overall_comment',
+    type: 'text',
+    nullable: true,
+    comment: '综评结论',
+  })
+  overallComment?: string;
 }
 

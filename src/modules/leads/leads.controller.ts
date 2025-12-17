@@ -1,12 +1,15 @@
 import { Controller, Get, Post, Put, Body, Param, Query, Delete, UseGuards, HttpCode, HttpStatus, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { LeadsService, CreateLeadDto } from './leads.service';
-import { SOURCE_OPTIONS } from '../../common/constants/source';
+import { DictionaryService } from '../dictionary/dictionary.service';
 
 @Controller('leads')
 @UseGuards(AuthGuard('jwt'))
 export class LeadsController {
-  constructor(private readonly leadsService: LeadsService) {}
+  constructor(
+    private readonly leadsService: LeadsService,
+    private readonly dictionaryService: DictionaryService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -106,7 +109,31 @@ export class LeadsController {
 
   @Get('sources')
   async getSources() {
-    return { code: 200, message: 'OK', data: SOURCE_OPTIONS };
+    try {
+      // 从字典表获取来源数据（系统级，tenantId = null）
+      const items = await this.dictionaryService.findItems(null, 'lead_source')
+      return {
+        code: 200,
+        message: 'OK',
+        data: items.map(item => ({
+          key: item.value,
+          label: item.label,
+        })),
+      }
+    } catch (error) {
+      // 如果字典表没有数据，返回空数组（兼容性处理）
+      return { code: 200, message: 'OK', data: [] }
+    }
+  }
+
+  @Get('check-duplicate-company')
+  async checkDuplicateCompany(@Query('company') company: string, @Request() req: any) {
+    if (!company || !company.trim()) {
+      return { code: 200, message: 'OK', data: { isDuplicate: false } };
+    }
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const isDuplicate = await this.leadsService.checkDuplicateCompany(company.trim(), tenantId);
+    return { code: 200, message: 'OK', data: { isDuplicate } };
   }
 
   @Post(':id/convert')
@@ -214,6 +241,20 @@ export class LeadsController {
     const newOwnerId = typeof body.newOwnerId === 'string' ? parseInt(body.newOwnerId, 10) : body.newOwnerId;
     const data = await this.leadsService.transfer(leadIds, newOwnerId, tenantId, memberId);
     return { code: 200, message: '转移线索成功', data };
+  }
+
+  @Post('assign')
+  @HttpCode(HttpStatus.OK)
+  async assign(
+    @Body() body: { leadIds: string[] | number[]; newOwnerId: string | number },
+    @Request() req: any,
+  ) {
+    const tenantId = typeof req.user.tenantId === 'string' ? parseInt(req.user.tenantId, 10) : req.user.tenantId;
+    const memberId = typeof req.user.memberId === 'string' ? parseInt(req.user.memberId, 10) : req.user.memberId;
+    const leadIds = body.leadIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
+    const newOwnerId = typeof body.newOwnerId === 'string' ? parseInt(body.newOwnerId, 10) : body.newOwnerId;
+    const data = await this.leadsService.assign(leadIds, newOwnerId, tenantId, memberId);
+    return { code: 200, message: '分配线索成功', data };
   }
 
   @Delete(':id')

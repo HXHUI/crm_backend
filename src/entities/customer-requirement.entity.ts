@@ -1,6 +1,5 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
-import { Customer } from './customer.entity';
 
 /**
  * 需求类型枚举
@@ -12,16 +11,26 @@ export enum RequirementType {
 }
 
 /**
- * 客户需求实体
+ * 关联类型枚举
+ */
+export enum RequirementRelatedType {
+  CUSTOMER = 'customer',
+  OPPORTUNITY = 'opportunity',
+}
+
+/**
+ * 客户需求实体（支持多态关联：可关联客户或商机）
  */
 @Entity('customer_requirements')
 export class CustomerRequirement extends BaseEntity {
-  @Column({ name: 'customer_id', type: 'bigint', comment: '客户ID' })
-  customerId: number;
+  // 多态关联字段
+  @Column({ name: 'related_type', type: 'varchar', length: 50, comment: '关联类型：customer/opportunity' })
+  @Index()
+  relatedType: RequirementRelatedType;
 
-  @ManyToOne(() => Customer, (customer) => customer.requirements)
-  @JoinColumn({ name: 'customer_id' })
-  customer: Customer;
+  @Column({ name: 'related_id', type: 'bigint', comment: '关联对象ID（客户ID或商机ID）' })
+  @Index()
+  relatedId: number;
 
   @Column({
     type: 'enum',

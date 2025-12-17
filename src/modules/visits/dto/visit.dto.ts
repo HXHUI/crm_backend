@@ -62,6 +62,15 @@ export class CreateVisitDto {
   @IsOptional()
   purpose?: VisitPurpose;
 
+  @ApiProperty({
+    description: '拜访准备（字典值编码数组）',
+    example: ['notebook', 'sample_pack'],
+    required: false,
+  })
+  @IsArray({ message: '拜访准备必须是数组' })
+  @IsOptional()
+  preparation?: string[];
+
   @ApiProperty({ description: '客户ID', example: 1, required: false })
   @IsNumber({}, { message: '客户ID必须是数字' })
   @IsOptional()
@@ -182,6 +191,15 @@ export class UpdateVisitDto {
   @IsEnum(VisitPurpose, { message: '请选择有效的拜访目的' })
   @IsOptional()
   purpose?: VisitPurpose;
+
+  @ApiProperty({
+    description: '拜访准备（字典值编码数组）',
+    example: ['notebook', 'sample_pack'],
+    required: false,
+  })
+  @IsArray({ message: '拜访准备必须是数组' })
+  @IsOptional()
+  preparation?: string[];
 
   @ApiProperty({ description: '拜访结果/反馈', example: '客户对产品很感兴趣', required: false })
   @IsString({ message: '拜访结果必须是字符串' })

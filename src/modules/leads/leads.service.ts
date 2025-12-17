@@ -10,6 +10,9 @@ import { Visit, VisitType, VisitStatus, VisitPurpose } from '../../entities/visi
 import { Member } from '../../entities/member.entity';
 import { Department } from '../../entities/department.entity';
 import { MemberDepartment } from '../../entities/member-department.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notification.entity';
+import { NotificationHelper } from '../notifications/utils/notification-helper';
 
 export interface CreateLeadDto {
   name?: string;
@@ -48,9 +51,36 @@ export class LeadsService {
     @InjectRepository(Department) private readonly departmentRepo: Repository<Department>,
     @InjectRepository(MemberDepartment) private readonly memberDepartmentRepo: Repository<MemberDepartment>,
     private readonly dataSource: DataSource,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
+  async checkDuplicateCompany(company: string, tenantId: number, excludeId?: number): Promise<boolean> {
+    if (!company || !company.trim()) {
+      return false; // 公司名称为空，不检查重复
+    }
+    const queryBuilder = this.leadRepo
+      .createQueryBuilder('lead')
+      .where('lead.tenantId = :tenantId', { tenantId })
+      .andWhere('lead.company = :company', { company: company.trim() })
+      .andWhere('lead.deletedAt IS NULL');
+    
+    if (excludeId) {
+      queryBuilder.andWhere('lead.id != :excludeId', { excludeId });
+    }
+    
+    const count = await queryBuilder.getCount();
+    return count > 0;
+  }
+
   async create(dto: CreateLeadDto, tenantId: number, memberId: number, departmentId?: number) {
+    // 检查重复公司
+    if (dto.company && dto.company.trim()) {
+      const isDuplicate = await this.checkDuplicateCompany(dto.company.trim(), tenantId);
+      if (isDuplicate) {
+        throw new BadRequestException(`该公司"${dto.company.trim()}"已存在线索，不允许重复添加`);
+      }
+    }
+    
     // 处理 ownerId：
     // 1. 如果 dto.ownerId 是 null，表示没有负责人（线索池）
     // 2. 如果 dto.ownerId 是数字或数字字符串，使用该值
@@ -760,9 +790,10 @@ export class LeadsService {
       if (options?.probability === undefined || options?.probability === null) {
         throw new BadRequestException('转化为商机时，成交概率为必填项');
       }
-      if (!options?.expectedCloseDate) {
-        throw new BadRequestException('转化为商机时，预计成交日期为必填项');
-      }
+      // 预计成交日期改为非必填
+      // if (!options?.expectedCloseDate) {
+      //   throw new BadRequestException('转化为商机时，预计成交日期为必填项');
+      // }
     }
 
     return await this.dataSource.transaction(async (manager) => {
@@ -957,6 +988,24 @@ export class LeadsService {
   async moveToPool(leadIds: number[], tenantId: number, operatorMemberId: number) {
     this.logger.log(`[moveToPool] 开始放入线索池，leadIds: ${leadIds.join(', ')}, tenantId: ${tenantId}`);
     
+    // 在更新前查询线索，获取原负责人信息
+    const leads = await this.leadRepo.find({
+      where: leadIds.map(id => ({ id, tenantId })),
+      relations: ['owner', 'owner.user'],
+    });
+
+    if (leads.length === 0) {
+      throw new NotFoundException('线索不存在或不属于当前租户');
+    }
+
+    // 获取操作人信息
+    const operator = await this.memberRepo.findOne({
+      where: { id: operatorMemberId, tenantId },
+      relations: ['user'],
+    });
+    const operatorName = operator?.nickname || operator?.user?.username || '未知用户';
+
+    // 批量更新线索的负责人为 null
     const result = await this.leadRepo
       .createQueryBuilder()
       .update(Lead)
@@ -967,6 +1016,68 @@ export class LeadsService {
       .execute();
     
     this.logger.log(`[moveToPool] 放入线索池成功，影响行数: ${result.affected}`);
+
+    // 发送通知给原负责人（如果有）
+    try {
+      // 按原负责人分组线索
+      const leadsByOldOwner = new Map<number, Lead[]>();
+      const oldOwnerInfo = new Map<number, { name: string; userId: number }>();
+
+      for (const lead of leads) {
+        if (lead.ownerId) {
+          // 原负责人存在
+          const oldOwnerUserId = await NotificationHelper.getUserIdFromMemberId(this.memberRepo, lead.ownerId);
+          if (oldOwnerUserId) {
+            if (!leadsByOldOwner.has(oldOwnerUserId)) {
+              leadsByOldOwner.set(oldOwnerUserId, []);
+              // 获取原负责人名称
+              const oldOwnerName = lead.owner?.nickname || lead.owner?.user?.username || '未知用户';
+              oldOwnerInfo.set(oldOwnerUserId, { name: oldOwnerName, userId: oldOwnerUserId });
+            }
+            leadsByOldOwner.get(oldOwnerUserId)!.push(lead);
+          }
+        }
+      }
+
+      // 通知原负责人
+      for (const [oldOwnerUserId, ownerLeads] of leadsByOldOwner.entries()) {
+        // 格式化线索名称
+        let leadNameText: string;
+        if (ownerLeads.length === 1) {
+          // 单个线索：显示线索名称
+          const lead = ownerLeads[0];
+          leadNameText = lead.name || lead.company || `线索${lead.id}`;
+        } else {
+          // 多个线索：显示第一个线索名称 + 等X条线索
+          const firstLead = ownerLeads[0];
+          const firstName = firstLead.name || firstLead.company || `线索${firstLead.id}`;
+          leadNameText = `${firstName}等${ownerLeads.length}条线索`;
+        }
+
+        await this.notificationsService.create(
+          {
+            receiverId: oldOwnerUserId,
+            type: NotificationType.SYSTEM,
+            title: '线索被收回',
+            content: `${operatorName}将线索"${leadNameText}"收回到线索池`,
+            metadata: {
+              businessType: 'lead',
+              businessId: ownerLeads[0]?.id,
+              subType: 'lead_reclaimed',
+              priority: 'medium',
+              actorId: operatorMemberId,
+              actorName: operatorName,
+              link: `/leads/pool`,
+            },
+          },
+          tenantId,
+        );
+      }
+    } catch (error) {
+      // 通知发送失败不影响放入线索池操作
+      this.logger.error('发送线索收回通知失败:', error);
+    }
+
     return { affected: result.affected || 0, leadIds };
   }
 
@@ -990,14 +1101,153 @@ export class LeadsService {
     return { affected: result.affected || 0, leadIds };
   }
 
-  async transfer(leadIds: number[], newOwnerId: number, tenantId: number, operatorMemberId: number) {
+  /**
+   * 分配线索（从线索池分配给用户，只有部门负责人可以操作）
+   */
+  async assign(leadIds: number[], newOwnerId: number, tenantId: number, operatorMemberId: number) {
     // 验证新负责人是否存在且属于同一租户
     const newOwner = await this.memberRepo.findOne({
       where: { id: newOwnerId, tenantId },
+      relations: ['user'],
     });
     if (!newOwner) {
       throw new NotFoundException('新负责人不存在或不属于当前租户');
     }
+
+    // 验证操作人是否是部门负责人
+    const operator = await this.memberRepo.findOne({
+      where: { id: operatorMemberId, tenantId },
+      relations: ['user'],
+    });
+    if (!operator) {
+      throw new NotFoundException('操作人不存在');
+    }
+
+    // 检查操作人是否是部门负责人
+    const operatorDepartments = await this.memberDepartmentRepo.find({
+      where: { memberId: operatorMemberId },
+      relations: ['department'],
+    });
+
+    let isDepartmentManager = false;
+    for (const memberDept of operatorDepartments) {
+      if (memberDept.department && memberDept.department.managerId === operatorMemberId) {
+        isDepartmentManager = true;
+        break;
+      }
+    }
+
+    if (!isDepartmentManager) {
+      throw new ForbiddenException('只有部门负责人才能分配线索');
+    }
+
+    // 验证线索是否都在线索池中（没有负责人）
+    const leads = await this.leadRepo.find({
+      where: leadIds.map(id => ({ id, tenantId })),
+    });
+
+    if (leads.length === 0) {
+      throw new NotFoundException('线索不存在或不属于当前租户');
+    }
+
+    // 检查是否有线索已经有负责人
+    const leadsWithOwner = leads.filter(l => l.ownerId !== null);
+    if (leadsWithOwner.length > 0) {
+      throw new BadRequestException('只能分配线索池中的线索（没有负责人的线索）');
+    }
+
+    // 获取操作人信息（优先使用 nickname，其次使用 user.username，最后使用 user.realName）
+    const operatorName = operator.nickname || operator.user?.username || '未知用户';
+
+    // 获取新负责人名称
+    const newOwnerName = newOwner.nickname || newOwner.user?.username || '未知用户';
+
+    // 批量更新线索的负责人
+    const result = await this.leadRepo
+      .createQueryBuilder()
+      .update(Lead)
+      .set({ ownerId: newOwnerId })
+      .where('id IN (:...leadIds)', { leadIds })
+      .andWhere('tenantId = :tenantId', { tenantId })
+      .andWhere('ownerId IS NULL') // 确保只分配线索池中的线索
+      .execute();
+
+    // 发送通知
+    try {
+      const newOwnerUserId = await NotificationHelper.getUserIdFromMemberId(this.memberRepo, newOwnerId);
+      const operatorUserId = operator ? await NotificationHelper.getUserIdFromMemberId(this.memberRepo, operatorMemberId) : null;
+
+      // 通知新负责人（如果存在且不是操作人）
+      if (newOwnerUserId && newOwnerUserId !== operatorUserId) {
+        // 格式化线索名称：{操作人}将线索"{线索名称}"分配给您
+        let leadNameText: string;
+        if (leads.length === 1) {
+          // 单个线索：显示线索名称（优先显示 name，其次 company）
+          const lead = leads[0];
+          leadNameText = lead.name || lead.company || `线索${lead.id}`;
+        } else {
+          // 多个线索：显示第一个线索名称 + 等X条线索
+          const firstLead = leads[0];
+          const firstName = firstLead.name || firstLead.company || `线索${firstLead.id}`;
+          leadNameText = `${firstName}等${leads.length}条线索`;
+        }
+
+        await this.notificationsService.create(
+          {
+            receiverId: newOwnerUserId,
+            type: NotificationType.SYSTEM,
+            title: '线索已分配',
+            content: `${operatorName}将线索"${leadNameText}"分配给您`,
+            metadata: {
+              businessType: 'lead',
+              businessId: leads[0]?.id,
+              subType: 'lead_assigned',
+              priority: 'high',
+              actorId: operatorMemberId,
+              actorName: operatorName,
+              link: `/leads`,
+            },
+          },
+          tenantId,
+        );
+      }
+    } catch (error) {
+      // 通知发送失败不影响分配操作
+      this.logger.error('发送线索分配通知失败:', error);
+    }
+
+    return { affected: result.affected || 0, leadIds };
+  }
+
+  async transfer(leadIds: number[], newOwnerId: number, tenantId: number, operatorMemberId: number) {
+    // 验证新负责人是否存在且属于同一租户
+    const newOwner = await this.memberRepo.findOne({
+      where: { id: newOwnerId, tenantId },
+      relations: ['user'],
+    });
+    if (!newOwner) {
+      throw new NotFoundException('新负责人不存在或不属于当前租户');
+    }
+
+    // 在转移前查询线索信息，获取原负责人
+    const leads = await this.leadRepo.find({
+      where: leadIds.map(id => ({ id, tenantId })),
+      relations: ['owner', 'owner.user'],
+    });
+
+    if (leads.length === 0) {
+      throw new NotFoundException('线索不存在或不属于当前租户');
+    }
+
+    // 获取操作人信息
+    const operator = await this.memberRepo.findOne({
+      where: { id: operatorMemberId, tenantId },
+      relations: ['user'],
+    });
+    const operatorName = operator?.nickname || operator?.user?.username || '系统';
+
+    // 获取新负责人名称
+    const newOwnerName = newOwner.nickname || newOwner.user?.username || '未知用户';
 
     // 批量更新线索的负责人
     const result = await this.leadRepo
@@ -1007,6 +1257,95 @@ export class LeadsService {
       .where('id IN (:...leadIds)', { leadIds })
       .andWhere('tenantId = :tenantId', { tenantId })
       .execute();
+
+    // 发送通知
+    try {
+      // 获取新负责人的 userId
+      const newOwnerUserId = await NotificationHelper.getUserIdFromMemberId(this.memberRepo, newOwnerId);
+      const operatorUserId = operator ? await NotificationHelper.getUserIdFromMemberId(this.memberRepo, operatorMemberId) : null;
+
+      // 按原负责人分组线索
+      const leadsByOldOwner = new Map<number, Lead[]>();
+      const oldOwnerInfo = new Map<number, { name: string; userId: number }>();
+
+      for (const lead of leads) {
+        if (lead.ownerId && lead.ownerId !== newOwnerId) {
+          // 原负责人存在且不是新负责人
+          const oldOwnerUserId = await NotificationHelper.getUserIdFromMemberId(this.memberRepo, lead.ownerId);
+          if (oldOwnerUserId) {
+            if (!leadsByOldOwner.has(oldOwnerUserId)) {
+              leadsByOldOwner.set(oldOwnerUserId, []);
+              // 获取原负责人名称
+              const oldOwnerName = lead.owner?.nickname || lead.owner?.user?.username || '未知用户';
+              oldOwnerInfo.set(oldOwnerUserId, { name: oldOwnerName, userId: oldOwnerUserId });
+            }
+            leadsByOldOwner.get(oldOwnerUserId)!.push(lead);
+          }
+        }
+      }
+
+      // 通知原负责人（如果有）
+      for (const [oldOwnerUserId, ownerLeads] of leadsByOldOwner.entries()) {
+        const ownerInfo = oldOwnerInfo.get(oldOwnerUserId)!;
+        const leadNames = ownerLeads
+          .map(l => l.name || l.company || `线索${l.id}`)
+          .slice(0, 3);
+        const leadNameText = leadNames.length > 0 
+          ? (leadNames.length === 1 ? leadNames[0] : `${leadNames[0]}等${ownerLeads.length}条线索`)
+          : `${ownerLeads.length}条线索`;
+
+        await this.notificationsService.create(
+          {
+            receiverId: oldOwnerUserId,
+            type: NotificationType.SYSTEM,
+            title: '线索已转移',
+            content: `线索"${leadNameText}"已从${ownerInfo.name}转移给${newOwnerName}`,
+            metadata: {
+              businessType: 'lead',
+              businessId: ownerLeads[0]?.id,
+              subType: 'lead_transferred',
+              priority: 'medium',
+              actorId: operatorMemberId,
+              actorName: operatorName,
+              link: `/leads`,
+            },
+          },
+          tenantId,
+        );
+      }
+
+      // 通知新负责人（如果存在且不是操作人）
+      if (newOwnerUserId && newOwnerUserId !== operatorUserId) {
+        const leadNames = leads
+          .map(l => l.name || l.company || `线索${l.id}`)
+          .slice(0, 3);
+        const leadNameText = leadNames.length > 0 
+          ? (leadNames.length === 1 ? leadNames[0] : `${leadNames[0]}等${leads.length}条线索`)
+          : `${leads.length}条线索`;
+
+        await this.notificationsService.create(
+          {
+            receiverId: newOwnerUserId,
+            type: NotificationType.SYSTEM,
+            title: '线索已分配',
+            content: `${operatorName}将线索"${leadNameText}"分配给您`,
+            metadata: {
+              businessType: 'lead',
+              businessId: leads[0]?.id,
+              subType: 'lead_assigned',
+              priority: 'high',
+              actorId: operatorMemberId,
+              actorName: operatorName,
+              link: `/leads`,
+            },
+          },
+          tenantId,
+        );
+      }
+    } catch (error) {
+      // 通知发送失败不影响转移操作
+      this.logger.error('发送线索转移通知失败:', error);
+    }
 
     return { affected: result.affected || 0, leadIds };
   }

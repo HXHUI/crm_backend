@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant, TenantStatus } from '../../entities/tenant.entity';
 import { Member, MemberStatus } from '../../entities/member.entity';
 import { User } from '../../entities/user.entity';
+import { Role } from '../../entities/role.entity';
+import { MemberRole } from '../../entities/member-role.entity';
 
 export interface CreateTenantDto {
   name: string;
@@ -121,6 +123,10 @@ export class TenantService {
     private readonly memberRepository: Repository<Member>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Role)
+    private readonly roleRepository: Repository<Role>,
+    @InjectRepository(MemberRole)
+    private readonly memberRoleRepository: Repository<MemberRole>,
   ) {}
 
   async getTenants(page: number, limit: number, search?: string) {
@@ -821,5 +827,279 @@ export class TenantService {
 
     const code = parts.join('');
     return { code };
+  }
+
+  // ========== 租户管理员管理 ==========
+  private readonly TENANT_ADMIN_ROLE_NAME = '租户管理员';
+
+  /**
+   * 获取或创建"租户管理员"角色
+   */
+  private async getOrCreateTenantAdminRole(tenantId: number, createdBy?: number): Promise<Role> {
+    // 验证 tenantId 是否有效
+    if (!tenantId || isNaN(tenantId)) {
+      throw new BadRequestException('租户ID无效');
+    }
+
+    let role = await this.roleRepository.findOne({
+      where: { name: this.TENANT_ADMIN_ROLE_NAME, tenantId },
+    });
+
+    if (!role) {
+      // 如果角色不存在，创建它
+      role = this.roleRepository.create({
+        name: this.TENANT_ADMIN_ROLE_NAME,
+        description: '租户管理员，可以管理企业信息和配置',
+        isActive: true,
+        tenantId,
+        createdBy,
+      });
+      role = await this.roleRepository.save(role);
+    }
+
+    return role;
+  }
+
+  /**
+   * 获取租户管理员列表
+   */
+  async getTenantAdmins(tenantId: number, page: number = 1, limit: number = 50, search?: string) {
+    // 验证 tenantId 是否有效
+    if (!tenantId || isNaN(tenantId)) {
+      throw new BadRequestException('租户ID无效');
+    }
+
+    // 获取"租户管理员"角色
+    const tenantAdminRole = await this.getOrCreateTenantAdminRole(tenantId);
+
+    // 查询拥有"租户管理员"角色的成员
+    const queryBuilder = this.memberRoleRepository
+      .createQueryBuilder('memberRole')
+      .leftJoinAndSelect('memberRole.member', 'member')
+      .leftJoinAndSelect('member.user', 'user')
+      .leftJoinAndSelect('memberRole.role', 'role')
+      .where('memberRole.roleId = :roleId', { roleId: tenantAdminRole.id })
+      .andWhere('member.tenantId = :tenantId', { tenantId })
+      .andWhere('memberRole.deletedAt IS NULL');
+
+    if (search) {
+      queryBuilder.andWhere(
+        '(user.username LIKE :search OR user.email LIKE :search OR user.phone LIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+
+    const [memberRoles, total] = await queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('memberRole.createdAt', 'DESC')
+      .getManyAndCount();
+
+    // 转换为返回格式
+    const admins = memberRoles.map((mr) => ({
+      id: mr.memberId.toString(),
+      memberId: mr.memberId.toString(),
+      userId: mr.member.userId.toString(),
+      username: mr.member.user.username,
+      email: mr.member.user.email,
+      phone: mr.member.user.phone,
+      avatar: mr.member.user.avatar,
+      status: mr.member.user.status,
+      roleId: mr.roleId.toString(),
+      roleName: mr.role.name,
+      createdAt: mr.createdAt.toISOString(),
+      updatedAt: mr.updatedAt.toISOString(),
+      member: mr.member,
+    }));
+
+    return {
+      admins,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * 添加租户管理员（给成员分配"租户管理员"角色）
+   */
+  async addTenantAdmin(tenantId: number, memberId: number, operatorId: number) {
+    // 验证操作者是否为租户负责人
+    const tenant = await this.tenantRepository.findOne({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('租户不存在');
+    }
+
+    if (tenant.ownerId !== operatorId) {
+      throw new ForbiddenException('只有租户负责人可以添加租户管理员');
+    }
+
+    // 验证成员是否存在且属于该租户
+    const member = await this.memberRepository.findOne({
+      where: { id: memberId, tenantId },
+      relations: ['user'],
+    });
+
+    if (!member) {
+      throw new NotFoundException('成员不存在或不属于该租户');
+    }
+
+    // 获取或创建"租户管理员"角色
+    const tenantAdminRole = await this.getOrCreateTenantAdminRole(tenantId, operatorId);
+
+    // 检查成员是否已经是租户管理员（包括已软删除的记录）
+    const existingMemberRole = await this.memberRoleRepository.findOne({
+      where: {
+        memberId,
+        roleId: tenantAdminRole.id,
+      },
+      withDeleted: true, // 包括已软删除的记录
+    });
+
+    if (existingMemberRole && !existingMemberRole.deletedAt) {
+      throw new ConflictException('该成员已经是租户管理员');
+    }
+
+    // 如果之前被删除过，恢复它
+    if (existingMemberRole && existingMemberRole.deletedAt) {
+      existingMemberRole.deletedAt = null;
+      await this.memberRoleRepository.save(existingMemberRole);
+      return {
+        id: memberId.toString(),
+        memberId: memberId.toString(),
+        userId: member.userId.toString(),
+        username: member.user.username,
+        email: member.user.email,
+        phone: member.user.phone,
+        avatar: member.user.avatar,
+        status: member.user.status,
+        roleId: tenantAdminRole.id.toString(),
+        roleName: tenantAdminRole.name,
+        createdAt: existingMemberRole.createdAt.toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    // 创建新的成员-角色关联
+    const memberRole = this.memberRoleRepository.create({
+      memberId,
+      roleId: tenantAdminRole.id,
+    });
+
+    const savedMemberRole = await this.memberRoleRepository.save(memberRole);
+
+    return {
+      id: memberId.toString(),
+      memberId: memberId.toString(),
+      userId: member.userId.toString(),
+      username: member.user.username,
+      email: member.user.email,
+      phone: member.user.phone,
+      avatar: member.user.avatar,
+      status: member.user.status,
+      roleId: tenantAdminRole.id.toString(),
+      roleName: tenantAdminRole.name,
+      createdAt: savedMemberRole.createdAt.toISOString(),
+      updatedAt: savedMemberRole.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * 移除租户管理员权限（软删除成员-角色关联）
+   */
+  async removeTenantAdmin(tenantId: number, memberId: number, operatorId: number) {
+    // 验证操作者是否为租户负责人
+    const tenant = await this.tenantRepository.findOne({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('租户不存在');
+    }
+
+    if (tenant.ownerId !== operatorId) {
+      throw new ForbiddenException('只有租户负责人可以移除租户管理员');
+    }
+
+    // 不能移除自己（如果操作者是租户负责人，且要移除的成员是自己）
+    const operatorMember = await this.memberRepository.findOne({
+      where: { userId: operatorId, tenantId },
+    });
+
+    if (operatorMember && operatorMember.id === memberId) {
+      throw new ForbiddenException('不能移除自己的租户管理员权限');
+    }
+
+    // 获取"租户管理员"角色
+    const tenantAdminRole = await this.getOrCreateTenantAdminRole(tenantId);
+
+    // 查找成员-角色关联（不包括已软删除的记录）
+    const memberRole = await this.memberRoleRepository.findOne({
+      where: {
+        memberId,
+        roleId: tenantAdminRole.id,
+      },
+    });
+
+    if (!memberRole) {
+      throw new NotFoundException('该成员不是租户管理员');
+    }
+
+    // 软删除
+    await this.memberRoleRepository.softRemove(memberRole);
+  }
+
+  /**
+   * 获取可用的成员列表（用于添加管理员时选择，排除已经是管理员的成员）
+   */
+  async getAvailableMembersForAdmin(tenantId: number, search?: string, page: number = 1, limit: number = 50) {
+    // 获取"租户管理员"角色
+    const tenantAdminRole = await this.getOrCreateTenantAdminRole(tenantId);
+
+    // 查询已经是租户管理员的成员ID列表
+    const adminMemberIds = await this.memberRoleRepository
+      .createQueryBuilder('memberRole')
+      .select('memberRole.memberId')
+      .where('memberRole.roleId = :roleId', { roleId: tenantAdminRole.id })
+      .andWhere('memberRole.deletedAt IS NULL')
+      .getRawMany();
+
+    const adminMemberIdSet = new Set(adminMemberIds.map((item: any) => item.memberRole_memberId));
+
+    // 查询租户的所有成员
+    const queryBuilder = this.memberRepository
+      .createQueryBuilder('member')
+      .leftJoinAndSelect('member.user', 'user')
+      .where('member.tenantId = :tenantId', { tenantId })
+      .andWhere('member.status = :status', { status: MemberStatus.ACTIVE });
+
+    // 排除已经是管理员的成员
+    if (adminMemberIdSet.size > 0) {
+      queryBuilder.andWhere('member.id NOT IN (:...adminIds)', {
+        adminIds: Array.from(adminMemberIdSet),
+      });
+    }
+
+    if (search) {
+      queryBuilder.andWhere(
+        '(user.username LIKE :search OR user.email LIKE :search OR user.phone LIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+
+    const [members, total] = await queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('member.createdAt', 'DESC')
+      .getManyAndCount();
+
+    return {
+      members,
+      total,
+    };
   }
 }

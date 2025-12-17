@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, LessThanOrEqual, IsNull, Not, In } from 'typeorm';
 import { Customer, CustomerStatus, CustomerType } from '../../entities/customer.entity';
@@ -14,6 +14,10 @@ import { getConfigFromObject } from '../../common/utils/tenant-config.util';
 import { CreateCustomerProfileDto, UpdateCustomerProfileDto, UpdateCreditInfoDto } from './dto/customer-profile.dto';
 import { CustomFieldConfigsService } from '../custom-field-configs/custom-field-configs.service';
 import { EntityType } from '../../entities/custom-field-config.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notification.entity';
+import { NotificationHelper } from '../notifications/utils/notification-helper';
+import { SolutionLibraryService } from '../solution-library/solution-library.service';
 
 export interface CreateCustomerDto {
   name: string;
@@ -76,6 +80,8 @@ export interface QueryCustomerDto {
 
 @Injectable()
 export class CustomersService {
+  private readonly logger = new Logger(CustomersService.name);
+
   constructor(
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
@@ -95,6 +101,8 @@ export class CustomersService {
     private readonly customerProfileRepository: Repository<CustomerProfile>,
     @InjectRepository(CustomerCreditHistory)
     private readonly customerCreditHistoryRepository: Repository<CustomerCreditHistory>,
+    private readonly notificationsService: NotificationsService,
+    private readonly solutionLibraryService: SolutionLibraryService,
     @Inject(forwardRef(() => CustomFieldConfigsService))
     private readonly customFieldConfigsService?: CustomFieldConfigsService,
   ) {}
@@ -336,7 +344,12 @@ export class CustomersService {
     }
 
     customer.status = status as CustomerStatus;
-    return await this.customerRepository.save(customer);
+    const savedCustomer = await this.customerRepository.save(customer);
+
+    // 注意：方案沉淀由前端对话框触发，不在这里自动创建
+    // 前端会在状态更新为 CLOSED_LOST 或 CLOSED_WON 时弹出方案沉淀对话框
+
+    return savedCustomer;
   }
 
   async updateCustomer(id: number, updateCustomerDto: UpdateCustomerDto, memberId: number, tenantId: number) {
@@ -556,6 +569,327 @@ export class CustomersService {
     customer.ownerId = null;
 
     return await this.customerRepository.save(customer);
+  }
+
+  // 批量领取客户（从公海转入私海）
+  async claimCustomers(customerIds: number[], tenantId: number, operatorMemberId: number) {
+    const result = await this.customerRepository
+      .createQueryBuilder()
+      .update(Customer)
+      .set({ ownerId: operatorMemberId })
+      .where('id IN (:...customerIds)', { customerIds })
+      .andWhere('tenantId = :tenantId', { tenantId })
+      .andWhere('deletedAt IS NULL')
+      .andWhere('ownerId IS NULL') // 只能领取没有负责人的客户
+      .execute();
+
+    return { affected: result.affected || 0, customerIds };
+  }
+
+  // 批量分配客户（从公海分配给用户，只有部门负责人可以操作）
+  async assignCustomers(customerIds: number[], newOwnerId: number, tenantId: number, operatorMemberId: number) {
+    // 验证新负责人是否存在且属于同一租户
+    const memberRepo = this.customerRepository.manager.getRepository(Member);
+    const memberDepartmentRepo = this.customerRepository.manager.getRepository(MemberDepartment);
+
+    const newOwner = await memberRepo.findOne({
+      where: { id: newOwnerId, tenantId },
+      relations: ['user'],
+    });
+    if (!newOwner) {
+      throw new NotFoundException('新负责人不存在或不属于当前租户');
+    }
+
+    // 验证操作人是否是部门负责人
+    const operator = await memberRepo.findOne({
+      where: { id: operatorMemberId, tenantId },
+      relations: ['user'],
+    });
+    if (!operator) {
+      throw new NotFoundException('操作人不存在');
+    }
+
+    // 检查操作人是否是部门负责人
+    const operatorDepartments = await memberDepartmentRepo.find({
+      where: { memberId: operatorMemberId },
+      relations: ['department'],
+    });
+
+    let isDepartmentManager = false;
+    for (const memberDept of operatorDepartments) {
+      if (memberDept.department && memberDept.department.managerId === operatorMemberId) {
+        isDepartmentManager = true;
+        break;
+      }
+    }
+
+    if (!isDepartmentManager) {
+      throw new ForbiddenException('只有部门负责人才能分配客户');
+    }
+
+    // 验证客户是否都在公海中（没有负责人）
+    const customers = await this.customerRepository.find({
+      where: customerIds.map(id => ({ id, tenantId })),
+    });
+
+    if (customers.length === 0) {
+      throw new NotFoundException('客户不存在或不属于当前租户');
+    }
+
+    // 检查是否有客户已经有负责人
+    const customersWithOwner = customers.filter(c => c.ownerId !== null);
+    if (customersWithOwner.length > 0) {
+      throw new BadRequestException('只能分配公海中的客户（没有负责人的客户）');
+    }
+
+    // 获取操作人名称
+    const operatorName = operator.nickname || operator.user?.username || '未知用户';
+
+    // 获取新负责人名称
+    const newOwnerName = newOwner.nickname || newOwner.user?.username || '未知用户';
+
+    // 批量更新客户的负责人
+    const result = await this.customerRepository
+      .createQueryBuilder()
+      .update(Customer)
+      .set({ ownerId: newOwnerId })
+      .where('id IN (:...customerIds)', { customerIds })
+      .andWhere('tenantId = :tenantId', { tenantId })
+      .andWhere('ownerId IS NULL') // 确保只分配公海中的客户
+      .execute();
+
+    // 发送通知
+    try {
+      const newOwnerUserId = await NotificationHelper.getUserIdFromMemberId(memberRepo, newOwnerId);
+      const operatorUserId = operator ? await NotificationHelper.getUserIdFromMemberId(memberRepo, operatorMemberId) : null;
+
+      // 通知新负责人（如果存在且不是操作人）
+      if (newOwnerUserId && newOwnerUserId !== operatorUserId) {
+        // 格式化客户名称
+        let customerNameText: string;
+        if (customers.length === 1) {
+          // 单个客户：显示客户名称
+          const customer = customers[0];
+          customerNameText = customer.name || customer.companyName || `客户${customer.id}`;
+        } else {
+          // 多个客户：显示第一个客户名称 + 等X个客户
+          const firstCustomer = customers[0];
+          const firstName = firstCustomer.name || firstCustomer.companyName || `客户${firstCustomer.id}`;
+          customerNameText = `${firstName}等${customers.length}个客户`;
+        }
+
+        await this.notificationsService.create(
+          {
+            receiverId: newOwnerUserId,
+            type: NotificationType.SYSTEM,
+            title: '客户已分配',
+            content: `${operatorName}将客户"${customerNameText}"分配给您`,
+            metadata: {
+              businessType: 'customer',
+              businessId: customers[0]?.id,
+              subType: 'customer_assigned',
+              priority: 'high',
+              actorId: operatorMemberId,
+              actorName: operatorName,
+              link: `/customers`,
+            },
+          },
+          tenantId,
+        );
+      }
+    } catch (error) {
+      // 通知发送失败不影响分配操作
+      console.error('发送客户分配通知失败:', error);
+    }
+
+    return { affected: result.affected || 0, customerIds };
+  }
+
+  // 批量转移客户（从有负责人转移给另一个负责人）
+  async transferCustomers(customerIds: number[], newOwnerId: number, tenantId: number, operatorMemberId: number) {
+    // 验证新负责人是否存在且属于同一租户
+    const memberRepo = this.customerRepository.manager.getRepository(Member);
+    const newOwner = await memberRepo.findOne({
+      where: { id: newOwnerId, tenantId },
+      relations: ['user'],
+    });
+    if (!newOwner) {
+      throw new NotFoundException('新负责人不存在或不属于当前租户');
+    }
+
+    // 在转移前查询客户信息，获取原负责人
+    const customers = await this.customerRepository.find({
+      where: customerIds.map(id => ({ id, tenantId })),
+      relations: ['owner', 'owner.user'],
+    });
+
+    if (customers.length === 0) {
+      throw new NotFoundException('客户不存在或不属于当前租户');
+    }
+
+    // 保存原负责人ID（在更新前）
+    const oldOwnerIds = new Map<number, number>(); // customerId -> oldOwnerId
+    for (const customer of customers) {
+      if (customer.ownerId) {
+        oldOwnerIds.set(customer.id, customer.ownerId);
+      }
+    }
+
+    // 获取操作人信息
+    const operator = await memberRepo.findOne({
+      where: { id: operatorMemberId, tenantId },
+      relations: ['user'],
+    });
+    const operatorName = operator?.nickname || operator?.user?.username || '未知用户';
+
+    // 获取新负责人名称
+    const newOwnerName = newOwner.nickname || newOwner.user?.username || '未知用户';
+
+    // 批量更新客户的负责人
+    const result = await this.customerRepository
+      .createQueryBuilder()
+      .update(Customer)
+      .set({ ownerId: newOwnerId })
+      .where('id IN (:...customerIds)', { customerIds })
+      .andWhere('tenantId = :tenantId', { tenantId })
+      .execute();
+
+    // 发送通知
+    try {
+      this.logger.log(`[transferCustomers] 开始发送通知，customerIds: ${customerIds.join(', ')}, newOwnerId: ${newOwnerId}`);
+      
+      const newOwnerUserId = await NotificationHelper.getUserIdFromMemberId(memberRepo, newOwnerId);
+      const operatorUserId = operator ? await NotificationHelper.getUserIdFromMemberId(memberRepo, operatorMemberId) : null;
+
+      this.logger.log(`[transferCustomers] 用户ID转换: newOwnerUserId=${newOwnerUserId}, operatorUserId=${operatorUserId}`);
+
+      // 按原负责人分组客户（使用保存的原负责人ID）
+      const customersByOldOwner = new Map<number, Customer[]>();
+      const oldOwnerInfo = new Map<number, { name: string; userId: number }>();
+
+      for (const customer of customers) {
+        const oldOwnerId = oldOwnerIds.get(customer.id);
+        this.logger.log(`[transferCustomers] 处理客户 ${customer.id}, oldOwnerId=${oldOwnerId}`);
+        
+        if (oldOwnerId && oldOwnerId !== newOwnerId) {
+          // 原负责人存在且不是新负责人
+          const oldOwnerUserId = await NotificationHelper.getUserIdFromMemberId(memberRepo, oldOwnerId);
+          this.logger.log(`[transferCustomers] 客户 ${customer.id} 原负责人 userId=${oldOwnerUserId}`);
+          
+          if (oldOwnerUserId) {
+            if (!customersByOldOwner.has(oldOwnerUserId)) {
+              customersByOldOwner.set(oldOwnerUserId, []);
+              // 获取原负责人信息（需要重新查询，因为 customer.owner 可能已经变化）
+              const oldOwner = await memberRepo.findOne({
+                where: { id: oldOwnerId, tenantId },
+                relations: ['user'],
+              });
+              const oldOwnerName = oldOwner?.nickname || oldOwner?.user?.username || '未知用户';
+              oldOwnerInfo.set(oldOwnerUserId, { name: oldOwnerName, userId: oldOwnerUserId });
+              this.logger.log(`[transferCustomers] 原负责人信息: userId=${oldOwnerUserId}, name=${oldOwnerName}`);
+            }
+            customersByOldOwner.get(oldOwnerUserId)!.push(customer);
+          }
+        }
+      }
+
+      this.logger.log(`[transferCustomers] 需要通知的原负责人数量: ${customersByOldOwner.size}`);
+
+      // 通知原负责人（如果有）
+      for (const [oldOwnerUserId, ownerCustomers] of customersByOldOwner.entries()) {
+        const ownerInfo = oldOwnerInfo.get(oldOwnerUserId)!;
+        // 格式化客户名称
+        let customerNameText: string;
+        if (ownerCustomers.length === 1) {
+          // 单个客户：显示客户名称
+          const customer = ownerCustomers[0];
+          customerNameText = customer.name || customer.companyName || `客户${customer.id}`;
+        } else {
+          // 多个客户：显示第一个客户名称 + 等X个客户
+          const firstCustomer = ownerCustomers[0];
+          const firstName = firstCustomer.name || firstCustomer.companyName || `客户${firstCustomer.id}`;
+          customerNameText = `${firstName}等${ownerCustomers.length}个客户`;
+        }
+
+        this.logger.log(`[transferCustomers] 发送通知给原负责人: userId=${oldOwnerUserId}, content=${customerNameText}`);
+        
+        try {
+          const notification = await this.notificationsService.create(
+            {
+              receiverId: oldOwnerUserId,
+              type: NotificationType.SYSTEM,
+              title: '客户已转移',
+              content: `客户"${customerNameText}"已从${ownerInfo.name}转移给${newOwnerName}`,
+              metadata: {
+                businessType: 'customer',
+                businessId: ownerCustomers[0]?.id,
+                subType: 'customer_transferred',
+                priority: 'medium',
+                actorId: operatorMemberId,
+                actorName: operatorName,
+                link: `/customers`,
+              },
+            },
+            tenantId,
+          );
+          
+          this.logger.log(`[transferCustomers] 原负责人通知创建成功: notificationId=${notification.id}`);
+        } catch (notifyError) {
+          this.logger.error(`[transferCustomers] 发送原负责人通知失败: userId=${oldOwnerUserId}`, notifyError);
+        }
+      }
+
+      // 通知新负责人（如果存在且不是操作人）
+      if (newOwnerUserId && newOwnerUserId !== operatorUserId) {
+        // 格式化客户名称
+        let customerNameText: string;
+        if (customers.length === 1) {
+          // 单个客户：显示客户名称
+          const customer = customers[0];
+          customerNameText = customer.name || customer.companyName || `客户${customer.id}`;
+        } else {
+          // 多个客户：显示第一个客户名称 + 等X个客户
+          const firstCustomer = customers[0];
+          const firstName = firstCustomer.name || firstCustomer.companyName || `客户${firstCustomer.id}`;
+          customerNameText = `${firstName}等${customers.length}个客户`;
+        }
+
+        this.logger.log(`[transferCustomers] 发送通知给新负责人: userId=${newOwnerUserId}, content=${customerNameText}`);
+        
+        try {
+          const notification = await this.notificationsService.create(
+            {
+              receiverId: newOwnerUserId,
+              type: NotificationType.SYSTEM,
+              title: '客户已分配',
+              content: `${operatorName}将客户"${customerNameText}"分配给您`,
+              metadata: {
+                businessType: 'customer',
+                businessId: customers[0]?.id,
+                subType: 'customer_assigned',
+                priority: 'high',
+                actorId: operatorMemberId,
+                actorName: operatorName,
+                link: `/customers`,
+              },
+            },
+            tenantId,
+          );
+          
+          this.logger.log(`[transferCustomers] 新负责人通知创建成功: notificationId=${notification.id}`);
+        } catch (notifyError) {
+          this.logger.error(`[transferCustomers] 发送新负责人通知失败: userId=${newOwnerUserId}`, notifyError);
+        }
+      } else {
+        this.logger.warn(`[transferCustomers] 跳过新负责人通知: newOwnerUserId=${newOwnerUserId}, operatorUserId=${operatorUserId}`);
+      }
+    } catch (error) {
+      // 通知发送失败不影响转移操作
+      this.logger.error('发送客户转移通知失败:', error);
+      this.logger.error('错误堆栈:', error instanceof Error ? error.stack : String(error));
+    }
+
+    return { affected: result.affected || 0, customerIds };
   }
 
   // 获取公海客户列表

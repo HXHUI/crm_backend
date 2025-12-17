@@ -38,6 +38,9 @@ import { DictionaryModule } from './modules/dictionary/dictionary.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SystemAdminModule } from './modules/system-admin/system-admin.module';
+import { CustomerCompetitorsModule } from './modules/customer-competitors/customer-competitors.module';
+import { CompetitorAlternativesModule } from './modules/competitor-alternatives/competitor-alternatives.module';
+import { SolutionLibraryModule } from './modules/solution-library/solution-library.module';
 
 // 健康检查
 import { HealthController } from './common/health/health.controller';
@@ -95,6 +98,9 @@ import * as entities from './entities';
     WorkflowModule,
     NotificationsModule,
     SystemAdminModule,
+    CustomerCompetitorsModule,
+    CompetitorAlternativesModule,
+    SolutionLibraryModule,
   ],
   controllers: [
     HealthController,

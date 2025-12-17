@@ -11,9 +11,15 @@ import { Visit } from '../../entities/visit.entity';
 import { Member } from '../../entities/member.entity';
 import { Department } from '../../entities/department.entity';
 import { MemberDepartment } from '../../entities/member-department.entity';
+import { DictionaryModule } from '../dictionary/dictionary.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Lead, Customer, Contact, Opportunity, Activity, Visit, Member, Department, MemberDepartment])],
+  imports: [
+    TypeOrmModule.forFeature([Lead, Customer, Contact, Opportunity, Activity, Visit, Member, Department, MemberDepartment]),
+    DictionaryModule,
+    NotificationsModule,
+  ],
   providers: [LeadsService],
   controllers: [LeadsController],
 })

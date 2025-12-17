@@ -8,9 +8,13 @@ import { Member } from '../../entities/member.entity';
 import { Department } from '../../entities/department.entity';
 import { MemberDepartment } from '../../entities/member-department.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { SolutionLibraryModule } from '../solution-library/solution-library.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Opportunity, Customer, Member, Department, MemberDepartment, Tenant])],
+  imports: [
+    TypeOrmModule.forFeature([Opportunity, Customer, Member, Department, MemberDepartment, Tenant]),
+    SolutionLibraryModule,
+  ],
   controllers: [OpportunitiesController],
   providers: [OpportunitiesService],
   exports: [OpportunitiesService],

@@ -1,11 +1,19 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
-import { CustomerRequirement, RequirementType } from '../../entities/customer-requirement.entity';
+import {
+  CustomerRequirement,
+  RequirementType,
+  RequirementRelatedType,
+} from '../../entities/customer-requirement.entity';
 import { Customer } from '../../entities/customer.entity';
+import { Opportunity } from '../../entities/opportunity.entity';
 
 export interface CreateRequirementDto {
-  customerId: number;
+  // 支持多态关联：relatedType + relatedId，或兼容旧的 customerId
+  relatedType?: RequirementRelatedType;
+  relatedId?: number;
+  customerId?: number; // 兼容字段，如果提供则自动转换为 relatedType='customer', relatedId=customerId
   type: RequirementType;
   content: string;
   problemToSolve?: string;
@@ -28,7 +36,10 @@ export interface UpdateRequirementDto {
 }
 
 export interface QueryRequirementDto {
-  customerId?: number;
+  // 支持多态查询
+  relatedType?: RequirementRelatedType;
+  relatedId?: number;
+  customerId?: number; // 兼容字段
   type?: RequirementType;
   status?: string;
   priority?: number;
@@ -44,27 +55,65 @@ export class CustomerRequirementsService {
     private readonly requirementRepository: Repository<CustomerRequirement>,
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
+    @InjectRepository(Opportunity)
+    private readonly opportunityRepository: Repository<Opportunity>,
   ) {}
 
   async createRequirement(createRequirementDto: CreateRequirementDto, memberId: number, tenantId: number) {
-    // 验证客户是否存在
-    const customer = await this.customerRepository.findOne({
-      where: { id: createRequirementDto.customerId, tenantId },
-    });
+    // 处理兼容性：如果提供了 customerId，转换为 relatedType + relatedId
+    let relatedType: RequirementRelatedType;
+    let relatedId: number;
 
-    if (!customer) {
-      throw new NotFoundException('客户不存在');
+    if (createRequirementDto.relatedType && createRequirementDto.relatedId) {
+      relatedType = createRequirementDto.relatedType;
+      relatedId = createRequirementDto.relatedId;
+    } else if (createRequirementDto.customerId) {
+      // 兼容旧接口
+      relatedType = RequirementRelatedType.CUSTOMER;
+      relatedId = createRequirementDto.customerId;
+    } else {
+      throw new NotFoundException('必须提供 relatedType + relatedId 或 customerId');
     }
 
-    // 检查权限：只能为自己的客户或公海客户创建需求
-    if (customer.ownerId && customer.ownerId !== memberId) {
-      throw new ForbiddenException('无权为该客户创建需求');
+    // 验证关联对象是否存在并检查权限
+    if (relatedType === RequirementRelatedType.CUSTOMER) {
+      const customer = await this.customerRepository.findOne({
+        where: { id: relatedId, tenantId },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('客户不存在');
+      }
+
+      // 检查权限
+      if (customer.ownerId && customer.ownerId !== memberId) {
+        throw new ForbiddenException('无权为该客户创建需求');
+      }
+    } else if (relatedType === RequirementRelatedType.OPPORTUNITY) {
+      const opportunity = await this.opportunityRepository.findOne({
+        where: { id: relatedId, tenantId },
+      });
+
+      if (!opportunity) {
+        throw new NotFoundException('商机不存在');
+      }
+
+      // 检查权限
+      if (opportunity.ownerId && opportunity.ownerId !== memberId) {
+        throw new ForbiddenException('无权为该商机创建需求');
+      }
     }
 
     const requirement = this.requirementRepository.create({
-      ...createRequirementDto,
+      relatedType,
+      relatedId,
+      type: createRequirementDto.type,
+      content: createRequirementDto.content,
+      problemToSolve: createRequirementDto.problemToSolve,
+      tags: createRequirementDto.tags,
       status: createRequirementDto.status || 'pending',
       priority: createRequirementDto.priority ?? 0,
+      notes: createRequirementDto.notes,
       tenantId,
     });
 
@@ -77,8 +126,14 @@ export class CustomerRequirementsService {
 
     const where: any = { tenantId };
 
-    if (filters.customerId) {
-      where.customerId = filters.customerId;
+    // 支持多态查询
+    if (filters.relatedType && filters.relatedId) {
+      where.relatedType = filters.relatedType;
+      where.relatedId = filters.relatedId;
+    } else if (filters.customerId) {
+      // 兼容旧接口
+      where.relatedType = RequirementRelatedType.CUSTOMER;
+      where.relatedId = filters.customerId;
     }
 
     if (filters.type) {
@@ -99,7 +154,6 @@ export class CustomerRequirementsService {
 
     const [requirements, total] = await this.requirementRepository.findAndCount({
       where,
-      relations: ['customer'],
       order: { createdAt: 'DESC' },
       skip,
       take: limit,
@@ -117,16 +171,27 @@ export class CustomerRequirementsService {
   async findOneRequirement(id: number, memberId: number, tenantId: number) {
     const requirement = await this.requirementRepository.findOne({
       where: { id, tenantId },
-      relations: ['customer'],
     });
 
     if (!requirement) {
       throw new NotFoundException('需求不存在');
     }
 
-    // 检查权限
-    if (requirement.customer.ownerId && requirement.customer.ownerId !== memberId) {
-      throw new ForbiddenException('无权查看该需求');
+    // 检查权限（支持客户和商机）
+    if (requirement.relatedType === RequirementRelatedType.CUSTOMER) {
+      const customer = await this.customerRepository.findOne({
+        where: { id: requirement.relatedId, tenantId },
+      });
+      if (customer?.ownerId && customer.ownerId !== memberId) {
+        throw new ForbiddenException('无权查看该需求');
+      }
+    } else if (requirement.relatedType === RequirementRelatedType.OPPORTUNITY) {
+      const opportunity = await this.opportunityRepository.findOne({
+        where: { id: requirement.relatedId, tenantId },
+      });
+      if (opportunity?.ownerId && opportunity.ownerId !== memberId) {
+        throw new ForbiddenException('无权查看该需求');
+      }
     }
 
     return requirement;
@@ -135,16 +200,27 @@ export class CustomerRequirementsService {
   async updateRequirement(id: number, updateRequirementDto: UpdateRequirementDto, memberId: number, tenantId: number) {
     const requirement = await this.requirementRepository.findOne({
       where: { id, tenantId },
-      relations: ['customer'],
     });
 
     if (!requirement) {
       throw new NotFoundException('需求不存在');
     }
 
-    // 检查权限
-    if (requirement.customer.ownerId && requirement.customer.ownerId !== memberId) {
-      throw new ForbiddenException('无权修改该需求');
+    // 检查权限（支持客户和商机）
+    if (requirement.relatedType === RequirementRelatedType.CUSTOMER) {
+      const customer = await this.customerRepository.findOne({
+        where: { id: requirement.relatedId, tenantId },
+      });
+      if (customer?.ownerId && customer.ownerId !== memberId) {
+        throw new ForbiddenException('无权修改该需求');
+      }
+    } else if (requirement.relatedType === RequirementRelatedType.OPPORTUNITY) {
+      const opportunity = await this.opportunityRepository.findOne({
+        where: { id: requirement.relatedId, tenantId },
+      });
+      if (opportunity?.ownerId && opportunity.ownerId !== memberId) {
+        throw new ForbiddenException('无权修改该需求');
+      }
     }
 
     // 如果状态改为已解决，自动设置解决时间和解决人
@@ -160,16 +236,27 @@ export class CustomerRequirementsService {
   async deleteRequirement(id: number, memberId: number, tenantId: number) {
     const requirement = await this.requirementRepository.findOne({
       where: { id, tenantId },
-      relations: ['customer'],
     });
 
     if (!requirement) {
       throw new NotFoundException('需求不存在');
     }
 
-    // 检查权限
-    if (requirement.customer.ownerId && requirement.customer.ownerId !== memberId) {
-      throw new ForbiddenException('无权删除该需求');
+    // 检查权限（支持客户和商机）
+    if (requirement.relatedType === RequirementRelatedType.CUSTOMER) {
+      const customer = await this.customerRepository.findOne({
+        where: { id: requirement.relatedId, tenantId },
+      });
+      if (customer?.ownerId && customer.ownerId !== memberId) {
+        throw new ForbiddenException('无权删除该需求');
+      }
+    } else if (requirement.relatedType === RequirementRelatedType.OPPORTUNITY) {
+      const opportunity = await this.opportunityRepository.findOne({
+        where: { id: requirement.relatedId, tenantId },
+      });
+      if (opportunity?.ownerId && opportunity.ownerId !== memberId) {
+        throw new ForbiddenException('无权删除该需求');
+      }
     }
 
     await this.requirementRepository.remove(requirement);
@@ -191,7 +278,38 @@ export class CustomerRequirementsService {
     }
 
     const requirements = await this.requirementRepository.find({
-      where: { customerId, tenantId },
+      where: {
+        relatedType: RequirementRelatedType.CUSTOMER,
+        relatedId: customerId,
+        tenantId,
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    return requirements;
+  }
+
+  // 新增：按商机查询需求
+  async getRequirementsByOpportunity(opportunityId: number, memberId: number, tenantId: number) {
+    const opportunity = await this.opportunityRepository.findOne({
+      where: { id: opportunityId, tenantId },
+    });
+
+    if (!opportunity) {
+      throw new NotFoundException('商机不存在');
+    }
+
+    // 检查权限
+    if (opportunity.ownerId && opportunity.ownerId !== memberId) {
+      throw new ForbiddenException('无权查看该商机的需求');
+    }
+
+    const requirements = await this.requirementRepository.find({
+      where: {
+        relatedType: RequirementRelatedType.OPPORTUNITY,
+        relatedId: opportunityId,
+        tenantId,
+      },
       order: { createdAt: 'DESC' },
     });
 

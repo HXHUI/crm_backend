@@ -101,8 +101,8 @@ export class Customer extends BaseEntity {
   @OneToMany(() => Opportunity, (opportunity) => opportunity.customer)
   opportunities: Opportunity[];
 
-  @OneToMany(() => CustomerRequirement, (requirement) => requirement.customer)
-  requirements: CustomerRequirement[];
+  // 需求不再直接关联客户，改为通过 relatedType/relatedId 多态关联
+  // requirements: CustomerRequirement[];
 
   // 活动不再直接关联客户，改为通过 relatedToType/relatedToId 关联
   // 保留占位属性以兼容旧代码（不映射关系）

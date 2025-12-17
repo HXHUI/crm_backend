@@ -12,11 +12,15 @@ import { Department } from '../../entities/department.entity';
 import { CustomerProfile } from '../../entities/customer-profile.entity';
 import { CustomerCreditHistory } from '../../entities/customer-credit-history.entity';
 import { CustomFieldConfigsModule } from '../custom-field-configs/custom-field-configs.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { SolutionLibraryModule } from '../solution-library/solution-library.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Customer, Contact, Member, Activity, Tenant, MemberDepartment, Department, CustomerProfile, CustomerCreditHistory]),
     forwardRef(() => CustomFieldConfigsModule),
+    NotificationsModule,
+    SolutionLibraryModule,
   ],
   controllers: [CustomersController],
   providers: [CustomersService],

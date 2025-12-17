@@ -34,3 +34,5 @@ export * from './workflow-instance.entity';
 export * from './workflow-record.entity';
 export * from './notification.entity';
 export * from './notification-setting.entity';
+export * from './customer-competitor.entity';
+export * from './competitor-alternative.entity';

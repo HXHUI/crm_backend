@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Brackets, MoreThanOrEqual, Not } from 'typeorm';
 import { Opportunity, OpportunityStatus, OpportunityStage } from '../../entities/opportunity.entity';
@@ -8,6 +8,7 @@ import { Department } from '../../entities/department.entity';
 import { MemberDepartment } from '../../entities/member-department.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { getConfigFromObject } from '../../common/utils/tenant-config.util';
+import { SolutionLibraryService } from '../solution-library/solution-library.service';
 
 export interface CreateOpportunityDto {
   title: string;
@@ -33,6 +34,8 @@ export interface UpdateOpportunityDto {
 
 @Injectable()
 export class OpportunitiesService {
+  private readonly logger = new Logger(OpportunitiesService.name);
+
   constructor(
     @InjectRepository(Opportunity)
     private readonly opportunityRepository: Repository<Opportunity>,
@@ -46,6 +49,7 @@ export class OpportunitiesService {
     private readonly memberDepartmentRepository: Repository<MemberDepartment>,
     @InjectRepository(Tenant)
     private readonly tenantRepository: Repository<Tenant>,
+    private readonly solutionLibraryService: SolutionLibraryService,
   ) {}
 
   async createOpportunity(createOpportunityDto: CreateOpportunityDto, memberId: number, tenantId: number, departmentId?: number) {
@@ -64,7 +68,9 @@ export class OpportunitiesService {
       description: createOpportunityDto.description,
       amount: createOpportunityDto.value,
       probability: createOpportunityDto.probability || 0,
-      expectedCloseDate: new Date(createOpportunityDto.expectedCloseDate),
+      expectedCloseDate: createOpportunityDto.expectedCloseDate 
+        ? new Date(createOpportunityDto.expectedCloseDate) 
+        : null,
       stage: this.mapStageToEntity(createOpportunityDto.stage || 'lead'),
       status: this.mapStageToStatus(createOpportunityDto.stage || 'lead'),
       customerId: createOpportunityDto.customerId,
@@ -256,7 +262,9 @@ export class OpportunitiesService {
       opportunity.probability = updateOpportunityDto.probability;
     }
     if (updateOpportunityDto.expectedCloseDate !== undefined) {
-      opportunity.expectedCloseDate = new Date(updateOpportunityDto.expectedCloseDate);
+      opportunity.expectedCloseDate = updateOpportunityDto.expectedCloseDate 
+        ? new Date(updateOpportunityDto.expectedCloseDate) 
+        : null;
     }
     if (updateOpportunityDto.stage !== undefined) {
       opportunity.stage = this.mapStageToEntity(updateOpportunityDto.stage);
@@ -405,6 +413,7 @@ export class OpportunitiesService {
       console.log('公海商机，允许操作');
     }
     
+    const oldStage = opportunity.stage;
     opportunity.stage = stage;
     
     // 根据阶段自动设置状态
@@ -420,6 +429,9 @@ export class OpportunitiesService {
     }
 
     const savedOpportunity = await this.opportunityRepository.save(opportunity);
+    
+    // 注意：方案沉淀由前端对话框触发，不在这里自动创建
+    // 前端会在阶段更新为 CLOSED_LOST 或 CLOSED_WON 时弹出方案沉淀对话框
     
     // 重新加载关联数据
     return await this.opportunityRepository.findOne({
